@@ -2,88 +2,148 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Package, Users, LayoutGrid, Settings, Shield } from 'lucide-react';
-import ThemeToggle from '@/components/layout/theme-toggle';
+import { useState, useEffect } from 'react';
+import { Package, Users, LayoutGrid, Settings, Shield, Menu, X, Moon, Sun } from 'lucide-react';
+import { useTheme } from '@/lib/store/theme-store';
 
-const navItems = [
-    { href: '/inventory', icon: Package, label: 'Inventory' },
-    { href: '/waiters', icon: Users, label: 'Waiters' },
-    { href: '/tables', icon: LayoutGrid, label: 'Tables' },
-    { href: '/admin', icon: Shield, label: 'Admin' },
-    { href: '/settings', icon: Settings, label: 'Settings' },
+const NAV_ITEMS = [
+    { label: 'Inventory', icon: Package, href: '/inventory' },
+    { label: 'Waiters', icon: Users, href: '/waiters' },
+    { label: 'Tables', icon: LayoutGrid, href: '/tables' },
+    { label: 'Admin', icon: Shield, href: '/admin' },
 ];
 
 export default function Sidebar() {
     const pathname = usePathname();
+    const { theme, toggleTheme } = useTheme();
+    const [mobileOpen, setMobileOpen] = useState(false);
+
+    useEffect(() => {
+        document.documentElement.classList.toggle('light', theme === 'light');
+    }, [theme]);
 
     return (
-        <aside
-            className="fixed left-0 top-0 h-screen w-16 border-r flex flex-col items-center py-6 gap-4"
-            style={{
-                backgroundColor: 'var(--card)',
-                borderColor: 'var(--border)'
-            }}
-        >
-            {/* Logo */}
-            <div
-                className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg mb-8"
-                style={{
-                    backgroundColor: 'var(--primary)',
-                    color: '#fff'
-                }}
+        <>
+            {/* Mobile Menu Button */}
+            <button
+                onClick={() => setMobileOpen(!mobileOpen)}
+                className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg"
+                style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
             >
-                RT
-            </div>
+                {mobileOpen ? <X className="w-5 h-5" style={{ color: 'var(--fg)' }} /> : <Menu className="w-5 h-5" style={{ color: 'var(--fg)' }} />}
+            </button>
 
-            {/* Navigation */}
-            <nav className="flex-1 flex flex-col gap-2">
-                {navItems.map(({ href, icon: Icon, label }) => {
-                    const isActive = pathname.startsWith(href);
-                    return (
-                        <div key={href} className="relative group">
+            {/* Overlay */}
+            {mobileOpen && (
+                <div className="lg:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setMobileOpen(false)} />
+            )}
+
+            {/* Sidebar */}
+            <aside
+                className={`fixed top-0 left-0 h-screen w-16 border-r flex flex-col z-40 transition-transform duration-300
+          ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
+                style={{ backgroundColor: 'var(--sidebar-bg)', borderColor: 'var(--border)' }}
+            >
+                {/* Logo */}
+                <div className="h-16 flex items-center justify-center border-b" style={{ borderColor: 'var(--border)' }}>
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg"
+                         style={{ backgroundColor: 'var(--accent)', color: '#fff' }}>
+                        RT
+                    </div>
+                </div>
+
+                {/* Navigation */}
+                <nav className="flex-1 py-4 px-2 space-y-2">
+                    {NAV_ITEMS.map((item) => {
+                        const isActive = pathname.startsWith(item.href);
+                        const Icon = item.icon;
+
+                        return (
                             <Link
-                                href={href}
-                                className="w-12 h-12 rounded-xl flex items-center justify-center transition-all"
+                                key={item.href}
+                                href={item.href}
+                                onClick={() => setMobileOpen(false)}
+                                className="w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group"
                                 style={{
-                                    backgroundColor: isActive ? 'var(--primary)' : 'transparent',
-                                    color: isActive ? '#fff' : 'var(--muted)',
+                                    backgroundColor: isActive ? 'var(--accent)' : 'transparent',
+                                    color: isActive ? '#fff' : 'var(--muted)'
                                 }}
                                 onMouseEnter={(e) => {
                                     if (!isActive) {
-                                        e.currentTarget.style.backgroundColor = 'var(--card)';
-                                        e.currentTarget.style.filter = 'brightness(1.2)';
+                                        e.currentTarget.style.backgroundColor = 'var(--hover-bg)';
                                         e.currentTarget.style.color = 'var(--fg)';
                                     }
                                 }}
                                 onMouseLeave={(e) => {
                                     if (!isActive) {
                                         e.currentTarget.style.backgroundColor = 'transparent';
-                                        e.currentTarget.style.filter = 'none';
                                         e.currentTarget.style.color = 'var(--muted)';
                                     }
                                 }}
                             >
                                 <Icon className="w-5 h-5" />
+
+                                {/* Tooltip */}
+                                <div
+                                    className="absolute left-full ml-2 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity shadow-lg border"
+                                    style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+                                >
+                                    {item.label}
+                                </div>
                             </Link>
+                        );
+                    })}
+                </nav>
 
-                            {/* Tooltip */}
-                            <div
-                                className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity shadow-lg border"
-                                style={{
-                                    backgroundColor: 'var(--card)',
-                                    borderColor: 'var(--border)',
-                                    color: 'var(--fg)',
-                                }}
-                            >
-                                {label}
-                            </div>
+                {/* Theme Toggle & Settings */}
+                <div className="border-t p-2 space-y-2" style={{ borderColor: 'var(--border)' }}>
+                    <button
+                        onClick={toggleTheme}
+                        className="w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group"
+                        style={{ color: 'var(--muted)' }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--hover-bg)';
+                            e.currentTarget.style.color = 'var(--fg)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.color = 'var(--muted)';
+                        }}
+                    >
+                        {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+
+                        <div
+                            className="absolute left-full ml-2 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity shadow-lg border"
+                            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+                        >
+                            {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
                         </div>
-                    );
-                })}
-            </nav>
+                    </button>
 
-            {/* Theme Toggle */}
-            <ThemeToggle />
-        </aside>
+                    <Link
+                        href="/settings"
+                        className="w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group"
+                        style={{ color: 'var(--muted)' }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--hover-bg)';
+                            e.currentTarget.style.color = 'var(--fg)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.color = 'var(--muted)';
+                        }}
+                    >
+                        <Settings className="w-5 h-5" />
+
+                        <div
+                            className="absolute left-full ml-2 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity shadow-lg border"
+                            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', color: 'var(--fg)' }}
+                        >
+                            Settings
+                        </div>
+                    </Link>
+                </div>
+            </aside>
+        </>
     );
 }

@@ -1,82 +1,109 @@
-/* src/app/globals.css - Simple Dark/Light Toggle */
+/* src/app/globals.css - Professional Single Color Theme */
 
 @import "tailwindcss";
 
-/* Dark theme (default) */
+/* Dark theme (default) - Professional */
 :root {
+    /* Backgrounds */
     --bg: #0a0a0a;
-    --fg: #fafafa;
+    --sidebar-bg: #0f0f0f;
     --card: #171717;
+    --hover-bg: #262626;
+
+    /* Borders */
     --border: #262626;
-    --primary: #8b5cf6;
-    --muted: #404040;
+
+    /* Text */
+    --fg: #fafafa;
+    --muted: #a1a1a1;
+
+    /* Accent - Single professional color */
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --accent-subtle: rgba(59, 130, 246, 0.1);
+
+    /* Status colors - minimal use */
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
 }
 
-/* Light theme */
+/* Light theme - Professional */
 .light {
-    --bg: #ffffff;
-    --fg: #0a0a0a;
-    --card: #fafafa;
-    --border: #e5e5e5;
-    --primary: #8b5cf6;
-    --muted: #737373;
+    /* Backgrounds */
+    --bg: #f8fafc;
+    --sidebar-bg: #ffffff;
+    --card: #ffffff;
+    --hover-bg: #f1f5f9;
+
+    /* Borders */
+    --border: #e2e8f0;
+
+    /* Text */
+    --fg: #0f172a;
+    --muted: #64748b;
+
+    /* Accent - Same blue for consistency */
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --accent-subtle: rgba(59, 130, 246, 0.1);
+
+    /* Status colors */
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    border-color: var(--border);
-}
-
-body {
-    background-color: var(--bg);
-    color: var(--fg);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-}
-
-/* Scrollbar */
-::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: var(--bg);
-}
-
-::-webkit-scrollbar-thumb {
-    background: var(--muted);
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: var(--primary);
-}
-
-/*@import "tailwindcss";*/
-
-/*:root {*/
-/*  --background: #ffffff;*/
-/*  --foreground: #171717;*/
-/*}*/
-
-/*@theme inline {*/
-/*  --color-background: var(--background);*/
-/*  --color-foreground: var(--foreground);*/
-/*  --font-sans: var(--font-geist-sans);*/
-/*  --font-mono: var(--font-geist-mono);*/
-/*}*/
-
-/*@media (prefers-color-scheme: dark) {*/
-/*  :root {*/
-/*    --background: #0a0a0a;*/
-/*    --foreground: #ededed;*/
-/*  }*/
+/*!* Reset *!*/
+/** {*/
+/*    margin: 0;*/
+/*    padding: 0;*/
+/*    box-sizing: border-box;*/
+/*    border-color: var(--border);*/
 /*}*/
 
 /*body {*/
-/*  background: var(--background);*/
-/*  color: var(--foreground);*/
-/*  font-family: Arial, Helvetica, sans-serif;*/
+/*    background-color: var(--bg);*/
+/*    color: var(--fg);*/
+/*    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;*/
+/*    -webkit-font-smoothing: antialiased;*/
+/*    -moz-osx-font-smoothing: grayscale;*/
+/*}*/
+
+/*!* Scrollbar - Professional *!*/
+/*::-webkit-scrollbar {*/
+/*    width: 8px;*/
+/*    height: 8px;*/
+/*}*/
+
+/*::-webkit-scrollbar-track {*/
+/*    background: transparent;*/
+/*}*/
+
+/*::-webkit-scrollbar-thumb {*/
+/*    background: var(--muted);*/
+/*    border-radius: 4px;*/
+/*    opacity: 0.5;*/
+/*}*/
+
+/*::-webkit-scrollbar-thumb:hover {*/
+/*    background: var(--accent);*/
+/*    opacity: 1;*/
+/*}*/
+
+/*!* Focus rings - Professional *!*/
+/**:focus-visible {*/
+/*    outline: 2px solid var(--accent);*/
+/*    outline-offset: 2px;*/
+/*}*/
+
+/*!* Transitions *!*/
+/*button, a, input, textarea, select {*/
+/*    transition: all 0.15s ease;*/
+/*}*/
+
+/*!* Selection *!*/
+/*::selection {*/
+/*    background-color: var(--accent-subtle);*/
+/*    color: var(--accent);*/
 /*}*/
