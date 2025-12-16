@@ -8,7 +8,7 @@ CREATE TABLE admins (
                         email TEXT UNIQUE NOT NULL,
                         name TEXT NOT NULL,
                         password_hash TEXT NOT NULL,
-                        role TEXT NOT NULL CHECK (role IN ('super_admin', 'admin')),
+                        role TEXT NOT NULL CHECK (role IN ('super_admin', 'users')),
                         permissions JSONB DEFAULT '{"inventory": true, "waiters": true, "tables": true, "analytics": true}'::jsonb,
                         created_at TIMESTAMPTZ DEFAULT NOW(),
                         is_active BOOLEAN DEFAULT true

@@ -18,7 +18,7 @@ export default function AdminPage() {
     const [admins, setAdmins] = useState<Admin[]>([]);
     const [dialog, setDialog] = useState<{ type: 'add' | 'edit' | 'delete' | null; admin?: Admin }>({ type: null });
     const [loading, setLoading] = useState(true);
-    const [currentUser] = useState({ id: 'super-admin-id', role: 'super_admin' });
+    const [currentUser] = useState({ id: 'super-users-id', role: 'super_admin' });
 
     const supabase = createClient();
 
