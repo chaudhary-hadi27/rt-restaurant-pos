@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { Package, Users, LayoutGrid, ShoppingBag, UtensilsCrossed, Home, Menu, X, Moon, Sun } from 'lucide-react'
+import { Package, Users, LayoutGrid, ShoppingBag, UtensilsCrossed, Home, Menu, X, Moon, Sun, FileSpreadsheet } from 'lucide-react'
 import { useTheme } from '@/lib/store/theme-store'
 
 const NAV = [
@@ -11,6 +11,7 @@ const NAV = [
     { label: 'Inventory', icon: Package, href: '/admin/inventory' },
     { label: 'Menu', icon: UtensilsCrossed, href: '/admin/menu' },
     { label: 'Waiters', icon: Users, href: '/admin/waiters' },
+    { label: 'Reports', icon: FileSpreadsheet, href: '/admin/reports' },
 ]
 
 export default function Sidebar() {

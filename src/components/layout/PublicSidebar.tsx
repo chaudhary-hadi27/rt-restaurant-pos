@@ -10,10 +10,8 @@ import { useHydration } from '@/lib/hooks/useHydration'
 // Update sidebar navigation
 const NAV_ITEMS = [
     { label: 'Menu', icon: UtensilsCrossed, href: '/' },
-    { label: 'Kitchen', icon: ChefHat, href: '/kitchen' }, // NEW
     { label: 'Tables', icon: LayoutGrid, href: '/tables' },
     { label: 'Orders', icon: ShoppingBag, href: '/orders' },
-    { label: 'Reports', icon: TrendingUp, href: '/reports' } // NEW
 ]
 
 export default function PublicSidebar() {
