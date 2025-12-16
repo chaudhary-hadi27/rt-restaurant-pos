@@ -7,10 +7,14 @@ export default function ThemeInitializer() {
     const { theme } = useTheme()
 
     useEffect(() => {
-        // Apply theme on mount and when it changes
+        // Remove both classes first
         document.documentElement.classList.remove('light', 'dark')
+
+        // Add current theme class
         if (theme === 'light') {
             document.documentElement.classList.add('light')
+        } else {
+            document.documentElement.classList.add('dark')
         }
     }, [theme])
 

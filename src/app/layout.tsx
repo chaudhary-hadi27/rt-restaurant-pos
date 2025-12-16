@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Geist } from "next/font/google"
 import "./globals.css"
 import ThemeInitializer from "@/components/ThemeInitializer"
+import PublicSidebar from "@/components/layout/PublicSidebar"
 
 const geist = Geist({
     variable: "--font-geist",
@@ -22,7 +23,11 @@ export default function RootLayout({
         <html lang="en" suppressHydrationWarning>
         <body className={`${geist.variable} antialiased`}>
         <ThemeInitializer />
-        {children}
+        <PublicSidebar />
+        {/* FIXED: Proper margins for content */}
+        <main className="lg:ml-16">
+            {children}
+        </main>
         </body>
         </html>
     )

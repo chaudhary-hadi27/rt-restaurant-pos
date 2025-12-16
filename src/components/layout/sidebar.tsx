@@ -11,8 +11,6 @@ const NAV = [
     { label: 'Inventory', icon: Package, href: '/admin/inventory' },
     { label: 'Menu', icon: UtensilsCrossed, href: '/admin/menu' },
     { label: 'Waiters', icon: Users, href: '/admin/waiters' },
-    { label: 'Tables', icon: LayoutGrid, href: '/admin/tables' },
-    { label: 'Orders', icon: ShoppingBag, href: '/admin/orders' }
 ]
 
 export default function Sidebar() {
