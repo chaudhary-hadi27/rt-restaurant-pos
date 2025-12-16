@@ -3,14 +3,17 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { UtensilsCrossed, LayoutGrid, ShoppingBag, Menu, X, Moon, Sun, Shield } from 'lucide-react'
+import { UtensilsCrossed, LayoutGrid, ShoppingBag, Menu, X, Moon, Sun, Shield, ChefHat, TrendingUp } from 'lucide-react'
 import { useTheme } from '@/lib/store/theme-store'
 import { useHydration } from '@/lib/hooks/useHydration'
 
+// Update sidebar navigation
 const NAV_ITEMS = [
     { label: 'Menu', icon: UtensilsCrossed, href: '/' },
+    { label: 'Kitchen', icon: ChefHat, href: '/kitchen' }, // NEW
     { label: 'Tables', icon: LayoutGrid, href: '/tables' },
-    { label: 'Orders', icon: ShoppingBag, href: '/orders' }
+    { label: 'Orders', icon: ShoppingBag, href: '/orders' },
+    { label: 'Reports', icon: TrendingUp, href: '/reports' } // NEW
 ]
 
 export default function PublicSidebar() {

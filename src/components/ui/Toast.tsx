@@ -1,4 +1,5 @@
 // src/components/ui/Toast.tsx + Store
+"use client";
 import { create } from 'zustand'
 import { CheckCircle, XCircle, AlertCircle, X } from 'lucide-react'
 import { useEffect } from 'react'
@@ -74,43 +75,3 @@ export default function ToastContainer() {
     )
 }
 
-// Demo Usage
-function DemoPage() {
-    const toast = useToast()
-
-    return (
-        <div className="p-8 space-y-4">
-            <h2 className="text-2xl font-bold" style={{ color: 'var(--fg)' }}>Toast System Demo</h2>
-
-            <div className="flex gap-3">
-                <button
-                    onClick={() => toast.add('success', 'Order placed successfully! 🎉')}
-                    className="px-4 py-2 rounded-lg font-medium"
-                    style={{ backgroundColor: '#10b981', color: '#fff' }}
-                >
-                    Success Toast
-                </button>
-
-                <button
-                    onClick={() => toast.add('error', 'Failed to delete item')}
-                    className="px-4 py-2 rounded-lg font-medium"
-                    style={{ backgroundColor: '#ef4444', color: '#fff' }}
-                >
-                    Error Toast
-                </button>
-
-                <button
-                    onClick={() => toast.add('warning', 'Low stock: Tomatoes (5 kg remaining)')}
-                    className="px-4 py-2 rounded-lg font-medium"
-                    style={{ backgroundColor: '#f59e0b', color: '#fff' }}
-                >
-                    Warning Toast
-                </button>
-            </div>
-
-            <ToastContainer />
-        </div>
-    )
-}
-
-export default DemoPage

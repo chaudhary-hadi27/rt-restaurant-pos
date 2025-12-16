@@ -208,36 +208,3 @@ export default function SplitBillModal({ order, onClose }: SplitBillProps) {
         </div>
     )
 }
-
-// Demo Usage
-function Demo() {
-    const [showModal, setShowModal] = useState(false)
-
-    const demoOrder = {
-        id: '1',
-        total_amount: 2500,
-        order_items: [
-            { id: '1', menu_items: { name: 'Chicken Biryani' }, quantity: 2, total_price: 1200 },
-            { id: '2', menu_items: { name: 'Cold Drink' }, quantity: 3, total_price: 450 },
-            { id: '3', menu_items: { name: 'Salad' }, quantity: 2, total_price: 400 }
-        ]
-    }
-
-    return (
-        <div className="p-8">
-            <button
-                onClick={() => setShowModal(true)}
-                className="px-6 py-3 rounded-lg font-bold"
-                style={{ backgroundColor: '#3b82f6', color: '#fff' }}
-            >
-                Open Split Bill
-            </button>
-
-            {showModal && (
-                <SplitBillModal order={demoOrder} onClose={() => setShowModal(false)} />
-            )}
-        </div>
-    )
-}
-
-export default Demo

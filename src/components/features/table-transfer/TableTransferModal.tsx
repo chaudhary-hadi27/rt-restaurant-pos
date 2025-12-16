@@ -177,36 +177,3 @@ export default function TableTransferModal({ currentTable, onClose, onSuccess }:
         </div>
     )
 }
-
-// Demo Usage
-function Demo() {
-    const [showModal, setShowModal] = useState(false)
-
-    const demoTable = {
-        id: '1',
-        table_number: 5,
-        current_order_id: 'order-123'
-    }
-
-    return (
-        <div className="p-8">
-            <button
-                onClick={() => setShowModal(true)}
-                className="px-6 py-3 rounded-lg font-bold"
-                style={{ backgroundColor: '#3b82f6', color: '#fff' }}
-            >
-                Transfer Table 5
-            </button>
-
-            {showModal && (
-                <TableTransferModal
-                    currentTable={demoTable}
-                    onClose={() => setShowModal(false)}
-                    onSuccess={() => alert('Table transferred!')}
-                />
-            )}
-        </div>
-    )
-}
-
-export default Demo
