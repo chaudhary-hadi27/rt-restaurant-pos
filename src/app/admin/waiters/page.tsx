@@ -1,215 +1,119 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { Waiter } from '@/types';
-import { Plus, Search, Users, DollarSign, Clock, TrendingUp, Power, PowerOff } from 'lucide-react';
-import WaiterCard from '@/components/waiters/WaiterCard';
-import WaiterDialog from '@/components/waiters/WaiterDialog';
-import DeleteDialog from '@/components/waiters/DeleteDialog';
-import ViewDialog from '@/components/waiters/ViewDialog';
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { Plus, Users, Clock } from 'lucide-react'
+import Button from '@/components/ui/Button'
+import Modal from '@/components/ui/Modal'
+import Input from '@/components/ui/Input'
 
 export default function WaitersPage() {
-    const [waiters, setWaiters] = useState<any[]>([]);
-    const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'on_duty'>('all');
-    const [loading, setLoading] = useState(true);
-    const [dialog, setDialog] = useState<{ type: 'add' | 'edit' | 'delete' | 'view' | null; waiter?: any }>({ type: null });
-
-    const supabase = createClient();
+    const [waiters, setWaiters] = useState<any[]>([])
+    const [modal, setModal] = useState<any>(null)
+    const [form, setForm] = useState({ name: '', phone: '' })
+    const supabase = createClient()
 
     useEffect(() => {
-        loadWaiters();
+        load()
+        supabase.channel('wait').on('postgres_changes', { event: '*', schema: 'public', table: 'waiters' }, load).subscribe()
+    }, [])
 
-        // Real-time updates
-        const channel = supabase
-            .channel('waiters_changes')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'waiters' }, () => loadWaiters())
-            .subscribe();
+    const load = async () => {
+        const { data } = await supabase.from('waiters').select('*').order('created_at', { ascending: false })
+        setWaiters(data || [])
+    }
 
-        return () => { supabase.removeChannel(channel); };
-    }, []);
+    const save = async () => {
+        const data = { name: form.name, phone: form.phone, is_active: true, total_orders: 0, total_revenue: 0 }
 
-    const loadWaiters = async () => {
-        setLoading(true);
-        const { data } = await supabase
-            .from('waiter_monthly_performance')
-            .select('*')
-            .order('total_revenue', { ascending: false });
-        setWaiters(data || []);
-        setLoading(false);
-    };
+        if (modal?.id) {
+            await supabase.from('waiters').update(data).eq('id', modal.id)
+        } else {
+            await supabase.from('waiters').insert(data)
+        }
 
-    const handleClockToggle = async (waiter: any) => {
-        const { data, error } = await supabase.rpc(
-            waiter.is_on_duty ? 'clock_out_waiter' : 'clock_in_waiter',
-            { p_waiter_id: waiter.id }
-        );
+        setModal(null)
+        setForm({ name: '', phone: '' })
+    }
 
-        if (!error) loadWaiters();
-    };
+    const toggleDuty = async (w: any) => {
+        await supabase.rpc(w.is_on_duty ? 'clock_out_waiter' : 'clock_in_waiter', { p_waiter_id: w.id })
+    }
 
-    const filtered = waiters.filter(w => {
-        const matchSearch = w.name.toLowerCase().includes(search.toLowerCase()) ||
-            w.phone?.toLowerCase().includes(search.toLowerCase());
-
-        const matchStatus = statusFilter === 'all' ||
-            (statusFilter === 'active' && w.is_active) ||
-            (statusFilter === 'on_duty' && w.is_on_duty);
-
-        return matchSearch && matchStatus;
-    });
-
-    const stats = {
-        total: waiters.length,
-        onDuty: waiters.filter(w => w.is_on_duty).length,
-        revenue: waiters.reduce((s, w) => s + (w.total_revenue || 0), 0),
-        orders: waiters.reduce((s, w) => s + (w.total_orders || 0), 0)
-    };
+    const stats = { total: waiters.length, onDuty: waiters.filter(w => w.is_on_duty).length }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
+        <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold" style={{ color: 'var(--fg)' }}>Waiters</h1>
-                    <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-                        {stats.onDuty} on duty · {stats.total} total staff
-                    </p>
+                    <h1 className="text-2xl font-bold text-[var(--fg)]">Waiters</h1>
+                    <p className="text-sm text-[var(--muted)]">{stats.onDuty} on duty · {stats.total} total</p>
                 </div>
-                <button
-                    onClick={() => setDialog({ type: 'add' })}
-                    className="px-4 py-2 rounded-lg flex items-center gap-2 font-medium"
-                    style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
-                >
-                    <Plus className="w-4 h-4" />
-                    Add Waiter
-                </button>
+                <Button onClick={() => { setModal({}); setForm({ name: '', phone: '' }) }}>
+                    <Plus className="w-4 h-4 mr-2" /> Add Waiter
+                </Button>
             </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 rounded-lg border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-                    <div className="flex items-center gap-3">
-                        <Users className="w-5 h-5" style={{ color: 'var(--accent)' }} />
-                        <div>
-                            <p className="text-xs" style={{ color: 'var(--muted)' }}>Total Staff</p>
-                            <p className="text-2xl font-bold" style={{ color: 'var(--fg)' }}>{stats.total}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {waiters.map(w => (
+                    <div key={w.id} className="p-4 bg-[var(--card)] border border-[var(--border)] rounded-xl">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold">
+                                {w.name[0]}
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-[var(--fg)]">{w.name}</h3>
+                                <p className="text-xs text-[var(--muted)]">{w.phone}</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 mb-3">
+                            <div className="p-2 bg-[var(--bg)] rounded-lg">
+                                <p className="text-xs text-[var(--muted)]">Orders</p>
+                                <p className="font-bold text-[var(--fg)]">{w.total_orders}</p>
+                            </div>
+                            <div className="p-2 bg-[var(--bg)] rounded-lg">
+                                <p className="text-xs text-[var(--muted)]">Revenue</p>
+                                <p className="font-bold text-[var(--fg)]">PKR {w.total_revenue}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                            <Button
+                                variant="secondary"
+                                onClick={() => toggleDuty(w)}
+                                className="flex-1 text-xs"
+                            >
+                                <Clock className="w-3 h-3 mr-1" />
+                                {w.is_on_duty ? 'Clock Out' : 'Clock In'}
+                            </Button>
+                            <button
+                                onClick={() => { setModal(w); setForm({ name: w.name, phone: w.phone }) }}
+                                className="px-3 py-1.5 text-xs text-blue-600 hover:text-blue-700"
+                            >
+                                Edit
+                            </button>
                         </div>
                     </div>
-                </div>
-                <div className="p-4 rounded-lg border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-                    <div className="flex items-center gap-3">
-                        <Clock className="w-5 h-5" style={{ color: '#10b981' }} />
-                        <div>
-                            <p className="text-xs" style={{ color: 'var(--muted)' }}>On Duty</p>
-                            <p className="text-2xl font-bold" style={{ color: 'var(--fg)' }}>{stats.onDuty}</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="p-4 rounded-lg border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-                    <div className="flex items-center gap-3">
-                        <DollarSign className="w-5 h-5" style={{ color: '#10b981' }} />
-                        <div>
-                            <p className="text-xs" style={{ color: 'var(--muted)' }}>Revenue (Month)</p>
-                            <p className="text-2xl font-bold" style={{ color: 'var(--fg)' }}>PKR {stats.revenue.toLocaleString()}</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="p-4 rounded-lg border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-                    <div className="flex items-center gap-3">
-                        <TrendingUp className="w-5 h-5" style={{ color: 'var(--accent)' }} />
-                        <div>
-                            <p className="text-xs" style={{ color: 'var(--muted)' }}>Orders (Month)</p>
-                            <p className="text-2xl font-bold" style={{ color: 'var(--fg)' }}>{stats.orders}</p>
-                        </div>
-                    </div>
-                </div>
+                ))}
             </div>
 
-            {/* Filters */}
-            <div className="flex gap-3">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--muted)' }} />
-                    <input
-                        type="text"
-                        placeholder="Search waiters..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg border focus:outline-none text-sm"
-                        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', color: 'var(--fg)' }}
-                    />
+            <Modal
+                open={!!modal}
+                onClose={() => setModal(null)}
+                title={modal?.id ? 'Edit Waiter' : 'Add Waiter'}
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setModal(null)} className="flex-1">Cancel</Button>
+                        <Button onClick={save} className="flex-1">Save</Button>
+                    </>
+                }
+            >
+                <div className="space-y-3">
+                    <Input label="Name" value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} />
+                    <Input label="Phone" value={form.phone} onChange={(e: any) => setForm({ ...form, phone: e.target.value })} />
                 </div>
-                <div className="flex gap-2">
-                    {['all', 'active', 'on_duty'].map(status => (
-                        <button
-                            key={status}
-                            onClick={() => setStatusFilter(status as any)}
-                            className="px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
-                            style={{
-                                backgroundColor: statusFilter === status ? 'var(--accent-subtle)' : 'var(--card)',
-                                borderColor: statusFilter === status ? 'var(--accent)' : 'var(--border)',
-                                color: statusFilter === status ? 'var(--accent)' : 'var(--fg)',
-                                border: '1px solid'
-                            }}
-                        >
-                            {status === 'all' ? 'All' : status === 'active' ? 'Active' : 'On Duty'}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Waiters Grid */}
-            {loading ? (
-                <div className="rounded-xl border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-                    <div className="p-8 text-center">
-                        <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin mx-auto mb-3" style={{ borderColor: 'var(--accent)' }}></div>
-                        <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading waiters...</p>
-                    </div>
-                </div>
-            ) : filtered.length === 0 ? (
-                <div className="rounded-xl border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-                    <div className="p-12 text-center">
-                        <Users className="w-12 h-12 mx-auto mb-3 opacity-20" style={{ color: 'var(--fg)' }} />
-                        <p className="font-medium mb-1" style={{ color: 'var(--fg)' }}>No waiters found</p>
-                        <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                            {search ? 'Try adjusting your search' : 'Add your first waiter to get started'}
-                        </p>
-                    </div>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filtered.map((waiter) => (
-                        <WaiterCard
-                            key={waiter.id}
-                            waiter={waiter}
-                            onView={() => setDialog({ type: 'view', waiter })}
-                            onEdit={() => setDialog({ type: 'edit', waiter })}
-                            onDelete={() => setDialog({ type: 'delete', waiter })}
-                            onClockToggle={() => handleClockToggle(waiter)}
-                        />
-                    ))}
-                </div>
-            )}
-
-            {/* Dialogs */}
-            {(dialog.type === 'add' || dialog.type === 'edit') && (
-                <WaiterDialog
-                    waiter={dialog.waiter}
-                    onClose={() => setDialog({ type: null })}
-                    onSuccess={() => { setDialog({ type: null }); loadWaiters(); }}
-                />
-            )}
-            {dialog.type === 'delete' && dialog.waiter && (
-                <DeleteDialog
-                    waiter={dialog.waiter}
-                    onClose={() => setDialog({ type: null })}
-                    onSuccess={() => { setDialog({ type: null }); loadWaiters(); }}
-                />
-            )}
-            {dialog.type === 'view' && dialog.waiter && (
-                <ViewDialog waiter={dialog.waiter} onClose={() => setDialog({ type: null })} />
-            )}
+            </Modal>
         </div>
-    );
+    )
 }
