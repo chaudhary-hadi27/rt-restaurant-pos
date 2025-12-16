@@ -8,23 +8,50 @@ import Button from '@/components/ui/Button'
 export default function OrdersPage() {
     const [orders, setOrders] = useState<any[]>([])
     const [filter, setFilter] = useState('all')
+    const [loading, setLoading] = useState(true) // ✅ ADDED THIS
     const supabase = createClient()
 
     useEffect(() => {
         load()
-        supabase.channel('ord').on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, load).subscribe()
+        const channel = supabase
+            .channel('ord')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, load)
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
     }, [])
 
     const load = async () => {
-        const { data } = await supabase
-            .from('orders')
-            .select('*, restaurant_tables(table_number), waiters(name), order_items(*, menu_items(name, price))')
-            .order('created_at', { ascending: false })
-        setOrders(data || [])
+        setLoading(true) // ✅ START LOADING
+        try {
+            const { data, error } = await supabase
+                .from('orders')
+                .select('*, restaurant_tables(table_number), waiters(name), order_items(*, menu_items(name, price))')
+                .order('created_at', { ascending: false })
+
+            if (error) throw error
+            setOrders(data || [])
+        } catch (error) {
+            console.error('Failed to load orders:', error)
+        } finally {
+            setLoading(false) // ✅ STOP LOADING
+        }
     }
 
     const updateStatus = async (id: string, status: string) => {
-        await supabase.from('orders').update({ status }).eq('id', id)
+        try {
+            const { error } = await supabase
+                .from('orders')
+                .update({ status })
+                .eq('id', id)
+
+            if (error) throw error
+        } catch (error) {
+            console.error('Failed to update status:', error)
+            alert('❌ Failed to update order status')
+        }
     }
 
     const filtered = filter === 'all' ? orders : orders.filter(o => o.status === filter)
@@ -74,53 +101,63 @@ export default function OrdersPage() {
                 ))}
             </div>
 
-            {/* Orders */}
-            <div className="space-y-3">
-                {filtered.map(o => (
-                    <div key={o.id} className="p-4 bg-[var(--card)] border border-[var(--border)] rounded-xl">
-                        <div className="flex items-start justify-between mb-3">
-                            <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                    <h3 className="font-semibold text-[var(--fg)]">Order #{o.id.slice(0, 8)}</h3>
-                                    <span className={`px-2 py-0.5 rounded-md text-xs font-medium capitalize ${
-                                        o.status === 'pending' ? 'bg-yellow-500/20 text-yellow-600' :
-                                            o.status === 'preparing' ? 'bg-blue-500/20 text-blue-600' :
-                                                'bg-green-500/20 text-green-600'
-                                    }`}>
-                    {o.status}
-                  </span>
+            {/* ✅ LOADING STATE ADDED */}
+            {loading ? (
+                <div className="flex justify-center py-12">
+                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+            ) : filtered.length === 0 ? (
+                <div className="text-center py-12 bg-[var(--card)] border border-[var(--border)] rounded-xl">
+                    <p className="text-[var(--muted)]">No {filter !== 'all' ? filter : ''} orders found</p>
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    {filtered.map(o => (
+                        <div key={o.id} className="p-4 bg-[var(--card)] border border-[var(--border)] rounded-xl">
+                            <div className="flex items-start justify-between mb-3">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <h3 className="font-semibold text-[var(--fg)]">Order #{o.id.slice(0, 8)}</h3>
+                                        <span className={`px-2 py-0.5 rounded-md text-xs font-medium capitalize ${
+                                            o.status === 'pending' ? 'bg-yellow-500/20 text-yellow-600' :
+                                                o.status === 'preparing' ? 'bg-blue-500/20 text-blue-600' :
+                                                    'bg-green-500/20 text-green-600'
+                                        }`}>
+                                            {o.status}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-[var(--muted)]">
+                                        Table {o.restaurant_tables?.table_number} · {o.waiters?.name} · {new Date(o.created_at).toLocaleTimeString()}
+                                    </p>
                                 </div>
-                                <p className="text-xs text-[var(--muted)]">
-                                    Table {o.restaurant_tables?.table_number} · {o.waiters?.name} · {new Date(o.created_at).toLocaleTimeString()}
-                                </p>
+                                <p className="text-xl font-bold text-blue-600">PKR {o.total_amount}</p>
                             </div>
-                            <p className="text-xl font-bold text-blue-600">PKR {o.total_amount}</p>
-                        </div>
 
-                        {/* Items */}
-                        <div className="space-y-1 mb-3">
-                            {o.order_items?.map((item: any) => (
-                                <div key={item.id} className="flex justify-between text-sm p-2 bg-[var(--bg)] rounded-lg">
-                                    <span className="text-[var(--fg)]">{item.quantity}x {item.menu_items?.name}</span>
-                                    <span className="text-[var(--muted)]">PKR {item.total_price}</span>
+                            {/* Items */}
+                            <div className="space-y-1 mb-3">
+                                {o.order_items?.map((item: any) => (
+                                    <div key={item.id} className="flex justify-between text-sm p-2 bg-[var(--bg)] rounded-lg">
+                                        <span className="text-[var(--fg)]">{item.quantity}x {item.menu_items?.name}</span>
+                                        <span className="text-[var(--muted)]">PKR {item.total_price}</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Actions */}
+                            {o.status !== 'completed' && (
+                                <div className="flex gap-2">
+                                    {o.status === 'pending' && (
+                                        <Button onClick={() => updateStatus(o.id, 'preparing')} className="text-sm">Start Preparing</Button>
+                                    )}
+                                    {o.status === 'preparing' && (
+                                        <Button onClick={() => updateStatus(o.id, 'completed')} className="text-sm">Mark Complete</Button>
+                                    )}
                                 </div>
-                            ))}
+                            )}
                         </div>
-
-                        {/* Actions */}
-                        {o.status !== 'completed' && (
-                            <div className="flex gap-2">
-                                {o.status === 'pending' && (
-                                    <Button onClick={() => updateStatus(o.id, 'preparing')} className="text-sm">Start Preparing</Button>
-                                )}
-                                {o.status === 'preparing' && (
-                                    <Button onClick={() => updateStatus(o.id, 'completed')} className="text-sm">Mark Complete</Button>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }
