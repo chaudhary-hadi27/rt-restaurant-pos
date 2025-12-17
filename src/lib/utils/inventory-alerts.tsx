@@ -220,23 +220,3 @@ export function AlertBell() {
     </div>
 )
 }
-
-// Demo Usage
-export default function AlertsDemo() {
-    return (
-        <div className="p-8">
-        <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--fg)' }}>
-    Inventory Alerts Demo
-    </h1>
-    <AlertBell />
-    </div>
-
-    <div className="p-6 rounded-xl border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-    <p style={{ color: 'var(--muted)' }}>
-    Click the bell icon to see inventory alerts. The system automatically monitors stock levels and creates alerts when items fall below 50% of reorder level.
-    </p>
-    </div>
-    </div>
-)
-}

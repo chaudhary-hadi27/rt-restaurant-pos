@@ -2,9 +2,8 @@ import type { Metadata } from "next"
 import { Geist } from "next/font/google"
 import "./globals.css"
 import ThemeInitializer from "@/components/ThemeInitializer"
-import PublicSidebar from "@/components/layout/PublicSidebar"
+import UnifiedSidebar from "@/components/layout/UnifiedSidebar"
 import ToastContainer from '@/components/ui/Toast'
-import { AlertBell } from '@/lib/utils/inventory-alerts'
 
 const geist = Geist({
     variable: "--font-geist",
@@ -12,7 +11,7 @@ const geist = Geist({
 })
 
 export const metadata: Metadata = {
-    title: "Restaurant Management",
+    title: "RT Restaurant - Management System",
     description: "Professional restaurant management system",
 }
 
@@ -26,9 +25,10 @@ export default function RootLayout({
         <body className={`${geist.variable} antialiased`}>
         <ThemeInitializer />
         <ToastContainer />
-        <PublicSidebar />
-        {/* FIXED: Proper margins for content */}
-        <main className="lg:ml-16">
+        <UnifiedSidebar />
+
+        {/* Main Content with proper margin */}
+        <main className="lg:ml-16 min-h-screen">
             {children}
         </main>
         </body>

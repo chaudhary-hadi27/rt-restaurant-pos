@@ -1,7 +1,9 @@
 // src/components/features/receipt/ReceiptGenerator.tsx
 'use client'
 
+import { useState, useEffect } from 'react'
 import { Printer, Download, X } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 type ReceiptProps = {
     order: {
@@ -13,8 +15,12 @@ type ReceiptProps = {
         restaurant_tables?: { table_number: number }
         waiters?: { name: string }
         order_items: Array<{
+            id: string
             quantity: number
-            menu_items: { name: string }
+            menu_items: {
+                name: string
+                category_id: string
+            }
             total_price: number
         }>
     }
@@ -22,12 +28,37 @@ type ReceiptProps = {
 }
 
 export default function ReceiptModal({ order, onClose }: ReceiptProps) {
+    const [categories, setCategories] = useState<any[]>([])
+    const supabase = createClient()
+
+    useEffect(() => {
+        loadCategories()
+    }, [])
+
+    const loadCategories = async () => {
+        const { data } = await supabase
+            .from('menu_categories')
+            .select('id, name, icon')
+            .order('display_order')
+
+        setCategories(data || [])
+    }
+
+    // Group items by category
+    const groupedItems = order.order_items.reduce((acc: any, item) => {
+        const categoryId = item.menu_items.category_id
+        if (!acc[categoryId]) {
+            acc[categoryId] = []
+        }
+        acc[categoryId].push(item)
+        return acc
+    }, {})
+
     const handlePrint = () => {
         window.print()
     }
 
     const handleDownload = () => {
-        // Create receipt HTML
         const receiptHTML = document.getElementById('receipt-content')?.innerHTML || ''
         const fullHTML = `
       <!DOCTYPE html>
@@ -43,6 +74,14 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
             }
             .header { text-align: center; margin-bottom: 20px; }
             .divider { border-top: 2px dashed #000; margin: 10px 0; }
+            .category-header { 
+              font-weight: bold; 
+              margin-top: 15px; 
+              margin-bottom: 8px;
+              padding: 5px 8px;
+              background: #f0f0f0;
+              border-left: 3px solid #000;
+            }
             table { width: 100%; }
             .text-right { text-align: right; }
             .bold { font-weight: bold; }
@@ -80,13 +119,17 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
                     {/* Restaurant Header */}
                     <div className="text-center mb-6">
                         <h2 className="text-2xl font-bold mb-1" style={{ color: 'var(--fg)' }}>
-                            Restaurant POS
+                            RT Restaurant
                         </h2>
                         <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                            123 Main Street, City
+                            Delicious Food, Memorable Moments
+                        </p>
+                        <div className="border-t-2 border-dashed my-3" style={{ borderColor: 'var(--border)' }}></div>
+                        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                            Sooter Mills Rd, Lahore
                         </p>
                         <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                            Tel: +92 300 1234567
+                            Tel: +92 321 9343489
                         </p>
                     </div>
 
@@ -97,21 +140,21 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
                         <div className="flex justify-between">
                             <span style={{ color: 'var(--muted)' }}>Order #</span>
                             <span style={{ color: 'var(--fg)' }} className="font-bold">
-                {order.id.slice(0, 8).toUpperCase()}
-              </span>
+                                {order.id.slice(0, 8).toUpperCase()}
+                            </span>
                         </div>
                         <div className="flex justify-between">
                             <span style={{ color: 'var(--muted)' }}>Date</span>
                             <span style={{ color: 'var(--fg)' }}>
-                {new Date(order.created_at).toLocaleString()}
-              </span>
+                                {new Date(order.created_at).toLocaleString()}
+                            </span>
                         </div>
                         {order.restaurant_tables && (
                             <div className="flex justify-between">
                                 <span style={{ color: 'var(--muted)' }}>Table</span>
                                 <span style={{ color: 'var(--fg)' }}>
-                  #{order.restaurant_tables.table_number}
-                </span>
+                                    #{order.restaurant_tables.table_number}
+                                </span>
                             </div>
                         )}
                         {order.waiters && (
@@ -124,20 +167,77 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
 
                     <div className="border-t-2 border-dashed my-4" style={{ borderColor: 'var(--border)' }}></div>
 
-                    {/* Items */}
-                    <div className="space-y-2 mb-4">
-                        {order.order_items.map((item, idx) => (
-                            <div key={idx} className="text-sm">
-                                <div className="flex justify-between mb-1">
-                  <span style={{ color: 'var(--fg)' }}>
-                    {item.quantity}x {item.menu_items.name}
-                  </span>
-                                    <span style={{ color: 'var(--fg)' }} className="font-bold">
-                    {item.total_price}
-                  </span>
+                    {/* Items Grouped by Category */}
+                    <div className="mb-4">
+                        {categories
+                            .filter(cat => groupedItems[cat.id]?.length > 0)
+                            .map(category => (
+                                <div key={category.id} className="mb-3">
+                                    {/* Category Header */}
+                                    <div
+                                        className="font-bold text-sm mb-2 px-2 py-1 rounded"
+                                        style={{
+                                            backgroundColor: 'var(--card)',
+                                            color: 'var(--fg)',
+                                            borderLeft: '3px solid #3b82f6'
+                                        }}
+                                    >
+                                        {category.icon} {category.name.toUpperCase()}
+                                    </div>
+
+                                    {/* Items in this category */}
+                                    <div className="space-y-2">
+                                        {groupedItems[category.id].map((item: any) => (
+                                            <div key={item.id} className="text-sm">
+                                                <div className="flex justify-between">
+                                                    <span style={{ color: 'var(--fg)' }}>
+                                                        {item.quantity}x {item.menu_items.name}
+                                                    </span>
+                                                    <span style={{ color: 'var(--fg)' }} className="font-bold">
+                                                        PKR {item.total_price}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+
+                        {/* Uncategorized items (if any) */}
+                        {Object.keys(groupedItems).filter(catId =>
+                            !categories.find(c => c.id === catId)
+                        ).length > 0 && (
+                            <div className="mb-3">
+                                <div
+                                    className="font-bold text-sm mb-2 px-2 py-1 rounded"
+                                    style={{
+                                        backgroundColor: 'var(--card)',
+                                        color: 'var(--fg)',
+                                        borderLeft: '3px solid #3b82f6'
+                                    }}
+                                >
+                                    📦 OTHER ITEMS
+                                </div>
+                                <div className="space-y-2">
+                                    {Object.keys(groupedItems)
+                                        .filter(catId => !categories.find(c => c.id === catId))
+                                        .map(catId =>
+                                            groupedItems[catId].map((item: any) => (
+                                                <div key={item.id} className="text-sm">
+                                                    <div className="flex justify-between">
+                                                        <span style={{ color: 'var(--fg)' }}>
+                                                            {item.quantity}x {item.menu_items.name}
+                                                        </span>
+                                                        <span style={{ color: 'var(--fg)' }} className="font-bold">
+                                                            PKR {item.total_price}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
                                 </div>
                             </div>
-                        ))}
+                        )}
                     </div>
 
                     <div className="border-t-2 border-dashed my-4" style={{ borderColor: 'var(--border)' }}></div>
@@ -162,8 +262,9 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
 
                     {/* Footer */}
                     <div className="text-center text-sm" style={{ color: 'var(--muted)' }}>
-                        <p className="mb-1">Thank you for dining with us!</p>
-                        <p>Please visit again</p>
+                        <p className="mb-1 font-bold">Thank you for dining with us!</p>
+                        <p className="mb-2">Please visit again</p>
+                        <p className="text-xs">Follow us: @rtrestaurant</p>
                     </div>
                 </div>
 
@@ -189,23 +290,22 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
             </div>
 
             <style jsx global>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          #receipt-content,
-          #receipt-content * {
-            visibility: visible;
-          }
-          #receipt-content {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-          }
-        }
-      `}</style>
+                @media print {
+                    body * {
+                        visibility: hidden;
+                    }
+                    #receipt-content,
+                    #receipt-content * {
+                        visibility: visible;
+                    }
+                    #receipt-content {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                    }
+                }
+            `}</style>
         </div>
     )
 }
-

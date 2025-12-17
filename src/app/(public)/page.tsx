@@ -2,9 +2,11 @@
 
 import { useState } from 'react'
 import { useSupabase } from '@/lib/hooks/useSupabase'
-import { useCart } from '@/lib/hooks/useCart'
-import { ShoppingCart, Plus, Minus, X, CheckCircle, Search } from 'lucide-react'
+import { useCart } from '@/lib/store/cart-store'
+import { ShoppingCart, Plus, Minus, X, CheckCircle, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/Toast'
+import NestedSidebar from '@/components/layout/NestedSidebar'
 
 export default function MenuPage() {
     const { data: categories } = useSupabase('menu_categories', {
@@ -18,7 +20,7 @@ export default function MenuPage() {
     })
 
     const { data: tables } = useSupabase('restaurant_tables', {
-        select: 'id, table_number, section, status'
+        select: 'id, table_number, section, status, current_order_id'
     })
 
     const { data: waiters } = useSupabase('waiters', {
@@ -27,49 +29,101 @@ export default function MenuPage() {
     })
 
     const cart = useCart()
-    const [search, setSearch] = useState('')
-    const [selectedCat, setSelectedCat] = useState('all')
-    const [cartOpen, setCartOpen] = useState(false)
-    const [selectedTable, setSelectedTable] = useState('')
-    const [selectedWaiter, setSelectedWaiter] = useState('')
-    const [orderNotes, setOrderNotes] = useState('')
-    const [placing, setPlacing] = useState(false)
+    const toast = useToast()
     const supabase = createClient()
 
-    const filtered = items
-        .filter(i => selectedCat === 'all' || i.category_id === selectedCat)
-        .filter(i => i.name.toLowerCase().includes(search.toLowerCase()))
+    const [selectedCat, setSelectedCat] = useState('all')
+    const [cartOpen, setCartOpen] = useState(false)
+    const [placing, setPlacing] = useState(false)
+
+    const filtered = items.filter(i => selectedCat === 'all' || i.category_id === selectedCat)
+
+    // Build nested sidebar items
+    const nestedItems = [
+        {
+            id: 'all',
+            label: 'All Items',
+            icon: '📋',
+            count: items.length,
+            active: selectedCat === 'all',
+            onClick: () => setSelectedCat('all')
+        },
+        ...categories.map(cat => ({
+            id: cat.id,
+            label: cat.name,
+            icon: cat.icon,
+            count: items.filter(i => i.category_id === cat.id).length,
+            active: selectedCat === cat.id,
+            onClick: () => setSelectedCat(cat.id)
+        }))
+    ]
 
     const placeOrder = async () => {
-        if (!selectedTable || !selectedWaiter) {
-            alert('Please select table and waiter')
+        if (!cart.tableId || !cart.waiterId) {
+            toast.add('error', 'Please select table and waiter')
             return
         }
-        if (cart.count === 0) {
-            alert('Cart is empty')
+        if (cart.items.length === 0) {
+            toast.add('error', 'Cart is empty')
             return
         }
 
         setPlacing(true)
         try {
-            const { data: order, error: orderError } = await supabase
-                .from('orders')
-                .insert({
-                    table_id: selectedTable,
-                    waiter_id: selectedWaiter,
-                    status: 'pending',
-                    subtotal: cart.subtotal,
-                    tax: cart.tax,
-                    total_amount: cart.total,
-                    notes: orderNotes || null
-                })
-                .select()
-                .single()
+            const table = tables.find(t => t.id === cart.tableId)
+            let orderId = table?.current_order_id
+            let isNewOrder = !orderId
 
-            if (orderError) throw orderError
+            if (isNewOrder) {
+                const { data: newOrder, error: orderError } = await supabase
+                    .from('orders')
+                    .insert({
+                        table_id: cart.tableId,
+                        waiter_id: cart.waiterId,
+                        status: 'pending',
+                        subtotal: cart.subtotal(),
+                        tax: cart.tax(),
+                        total_amount: cart.total(),
+                        notes: cart.notes || null
+                    })
+                    .select()
+                    .single()
+
+                if (orderError) throw orderError
+                orderId = newOrder.id
+
+                await supabase
+                    .from('restaurant_tables')
+                    .update({
+                        status: 'occupied',
+                        waiter_id: cart.waiterId,
+                        current_order_id: orderId
+                    })
+                    .eq('id', cart.tableId)
+            } else {
+                const { data: existingOrder } = await supabase
+                    .from('orders')
+                    .select('subtotal, tax, total_amount')
+                    .eq('id', orderId)
+                    .single()
+
+                const newSubtotal = existingOrder.subtotal + cart.subtotal()
+                const newTax = newSubtotal * 0.05
+                const newTotal = newSubtotal + newTax
+
+                await supabase
+                    .from('orders')
+                    .update({
+                        subtotal: newSubtotal,
+                        tax: newTax,
+                        total_amount: newTotal,
+                        notes: cart.notes || existingOrder.notes
+                    })
+                    .eq('id', orderId)
+            }
 
             const orderItems = cart.items.map(item => ({
-                order_id: order.id,
+                order_id: orderId,
                 menu_item_id: item.id,
                 quantity: item.quantity,
                 unit_price: item.price,
@@ -78,140 +132,104 @@ export default function MenuPage() {
 
             await supabase.from('order_items').insert(orderItems)
 
-            await supabase
-                .from('restaurant_tables')
-                .update({
-                    status: 'occupied',
-                    waiter_id: selectedWaiter,
-                    current_order_id: order.id
-                })
-                .eq('id', selectedTable)
-
             await supabase.rpc('increment_waiter_stats', {
-                p_waiter_id: selectedWaiter,
-                p_orders: 1,
-                p_revenue: cart.total
+                p_waiter_id: cart.waiterId,
+                p_orders: isNewOrder ? 1 : 0,
+                p_revenue: cart.total()
             })
 
-            alert('Order placed successfully! ✓')
-            cart.clear()
-            setSelectedTable('')
-            setSelectedWaiter('')
-            setOrderNotes('')
+            toast.add('success', isNewOrder ? '✅ New order started!' : '✅ Items added to order!')
+            cart.clearCart()
             setCartOpen(false)
         } catch (error) {
             console.error('Order failed:', error)
-            alert('Failed to place order')
+            toast.add('error', 'Failed to place order')
         }
         setPlacing(false)
     }
 
+    const getTableStatus = (tableId: string) => {
+        const table = tables.find(t => t.id === tableId)
+        if (table?.current_order_id) {
+            return { hasOrder: true, orderId: table.current_order_id }
+        }
+        return { hasOrder: false, orderId: null }
+    }
+
     return (
-        <div className="min-h-screen bg-[var(--bg)]">
-            <header className="sticky top-0 z-30 bg-[var(--card)] border-b border-[var(--border)]">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-2xl font-bold text-[var(--fg)]">Menu</h1>
-                            <p className="text-sm text-[var(--muted)] mt-1">{filtered.length} items available</p>
-                        </div>
-                        <button
-                            onClick={() => setCartOpen(true)}
-                            className="relative px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                        >
-                            <ShoppingCart className="w-5 h-5 inline mr-2" />
-                            Cart
-                            {cart.count > 0 && (
-                                <span className="absolute -top-2 -right-2 w-6 h-6 bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
-                                    {cart.count}
-                                </span>
-                            )}
-                        </button>
-                    </div>
-                </div>
-            </header>
+        <>
+            {/* Nested Sidebar - Categories */}
+            <NestedSidebar
+                title="Categories"
+                items={nestedItems}
+            />
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-                {/* Search & Categories */}
-                <div className="space-y-3">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--muted)]" />
-                        <input
-                            type="text"
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            placeholder="Search menu items..."
-                            className="w-full pl-10 pr-4 py-2.5 bg-[var(--card)] border border-[var(--border)] rounded-lg text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-blue-600"
-                        />
-                    </div>
-
-                    <div className="flex gap-2 overflow-x-auto pb-2">
-                        <button
-                            onClick={() => setSelectedCat('all')}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
-                                selectedCat === 'all'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-[var(--card)] text-[var(--fg)] border border-[var(--border)] hover:border-blue-600'
-                            }`}
-                        >
-                            All Items
-                        </button>
-                        {categories.map(c => (
+            {/* Main Content - Adjusted for nested sidebar */}
+            <div className="min-h-screen bg-[var(--bg)] lg:ml-64">
+                <header className="sticky top-0 z-20 bg-[var(--card)] border-b border-[var(--border)]">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h1 className="text-2xl font-bold text-[var(--fg)]">Menu</h1>
+                                <p className="text-sm text-[var(--muted)] mt-1">{filtered.length} items available</p>
+                            </div>
                             <button
-                                key={c.id}
-                                onClick={() => setSelectedCat(c.id)}
-                                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
-                                    selectedCat === c.id
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-[var(--card)] text-[var(--fg)] border border-[var(--border)] hover:border-blue-600'
-                                }`}
+                                onClick={() => setCartOpen(true)}
+                                className="relative px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                             >
-                                {c.icon} {c.name}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Menu Items */}
-                {loading ? (
-                    <div className="flex justify-center py-20">
-                        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filtered.map(item => (
-                            <div key={item.id} className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden hover:shadow-lg hover:border-blue-600 transition-all group">
-                                {item.image_url && (
-                                    <div className="h-48 overflow-hidden">
-                                        <img
-                                            src={item.image_url}
-                                            alt={item.name}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                                        />
-                                    </div>
+                                <ShoppingCart className="w-5 h-5 inline mr-2" />
+                                Cart
+                                {cart.itemCount() > 0 && (
+                                    <span className="absolute -top-2 -right-2 w-6 h-6 bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                                        {cart.itemCount()}
+                                    </span>
                                 )}
-                                <div className="p-4">
-                                    <h3 className="font-semibold text-lg text-[var(--fg)] mb-1">{item.name}</h3>
-                                    {item.description && (
-                                        <p className="text-sm text-[var(--muted)] mb-3 line-clamp-2">{item.description}</p>
+                            </button>
+                        </div>
+                    </div>
+                </header>
+
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 mt-16 lg:mt-0">
+                    {loading ? (
+                        <div className="flex justify-center py-20">
+                            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {filtered.map(item => (
+                                <div key={item.id} className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden hover:shadow-lg hover:border-blue-600 transition-all group">
+                                    {item.image_url && (
+                                        <div className="h-48 overflow-hidden">
+                                            <img
+                                                src={item.image_url}
+                                                alt={item.name}
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                            />
+                                        </div>
                                     )}
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-xl font-bold text-blue-600">PKR {item.price}</span>
-                                        <button
-                                            onClick={() => cart.add(item)}
-                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors font-medium"
-                                        >
-                                            <Plus className="w-4 h-4" /> Add
-                                        </button>
+                                    <div className="p-4">
+                                        <h3 className="font-semibold text-lg text-[var(--fg)] mb-1">{item.name}</h3>
+                                        {item.description && (
+                                            <p className="text-sm text-[var(--muted)] mb-3 line-clamp-2">{item.description}</p>
+                                        )}
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xl font-bold text-blue-600">PKR {item.price}</span>
+                                            <button
+                                                onClick={() => cart.addItem(item)}
+                                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors font-medium"
+                                            >
+                                                <Plus className="w-4 h-4" /> Add
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Cart Drawer */}
+            {/* Cart Drawer - Same as before */}
             {cartOpen && (
                 <>
                     <div className="fixed inset-0 bg-black/60 z-50 backdrop-blur-sm" onClick={() => setCartOpen(false)} />
@@ -230,21 +248,33 @@ export default function MenuPage() {
                                     <div>
                                         <label className="block text-xs font-medium text-[var(--muted)] mb-1">Table</label>
                                         <select
-                                            value={selectedTable}
-                                            onChange={e => setSelectedTable(e.target.value)}
+                                            value={cart.tableId}
+                                            onChange={e => cart.setTable(e.target.value)}
                                             className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--fg)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
                                         >
                                             <option value="">Select table</option>
-                                            {tables.filter(t => t.status === 'available' || t.status === 'occupied').map(t => (
-                                                <option key={t.id} value={t.id}>Table {t.table_number} - {t.section}</option>
-                                            ))}
+                                            {tables.filter(t => t.status === 'available' || t.status === 'occupied').map(t => {
+                                                const { hasOrder } = getTableStatus(t.id)
+                                                return (
+                                                    <option key={t.id} value={t.id}>
+                                                        Table {t.table_number} - {t.section} {hasOrder ? '🔄' : ''}
+                                                    </option>
+                                                )
+                                            })}
                                         </select>
+                                        {cart.tableId && getTableStatus(cart.tableId).hasOrder && (
+                                            <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-center gap-2">
+                                                <AlertCircle className="w-4 h-4 text-yellow-600" />
+                                                <p className="text-xs text-yellow-600 font-medium">Running bill - items will be added</p>
+                                            </div>
+                                        )}
                                     </div>
+
                                     <div>
                                         <label className="block text-xs font-medium text-[var(--muted)] mb-1">Waiter</label>
                                         <select
-                                            value={selectedWaiter}
-                                            onChange={e => setSelectedWaiter(e.target.value)}
+                                            value={cart.waiterId}
+                                            onChange={e => cart.setWaiter(e.target.value)}
                                             className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--fg)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
                                         >
                                             <option value="">Select waiter</option>
@@ -265,14 +295,14 @@ export default function MenuPage() {
                                         </div>
                                         <div className="flex gap-2">
                                             <button
-                                                onClick={() => cart.updateQty(item.id, item.quantity - 1)}
+                                                onClick={() => cart.updateQuantity(item.id, item.quantity - 1)}
                                                 className="px-3 py-1 bg-[var(--card)] border border-[var(--border)] rounded hover:border-red-600 transition-colors"
                                             >
                                                 <Minus className="w-4 h-4" />
                                             </button>
                                             <span className="px-3 py-1 font-semibold text-sm text-[var(--fg)]">{item.quantity}</span>
                                             <button
-                                                onClick={() => cart.updateQty(item.id, item.quantity + 1)}
+                                                onClick={() => cart.updateQuantity(item.id, item.quantity + 1)}
                                                 className="px-3 py-1 bg-[var(--card)] border border-[var(--border)] rounded hover:border-green-600 transition-colors"
                                             >
                                                 <Plus className="w-4 h-4" />
@@ -285,8 +315,8 @@ export default function MenuPage() {
                             <div>
                                 <label className="block text-xs font-medium text-[var(--muted)] mb-1">Notes</label>
                                 <textarea
-                                    value={orderNotes}
-                                    onChange={e => setOrderNotes(e.target.value)}
+                                    value={cart.notes}
+                                    onChange={e => cart.setNotes(e.target.value)}
                                     placeholder="Special instructions..."
                                     rows={2}
                                     className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--fg)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
@@ -294,35 +324,39 @@ export default function MenuPage() {
                             </div>
                         </div>
 
-                        {cart.count > 0 && (
+                        {cart.itemCount() > 0 && (
                             <div className="border-t border-[var(--border)] p-4 bg-[var(--bg)]">
                                 <div className="space-y-2 mb-4">
                                     <div className="flex justify-between text-sm">
                                         <span className="text-[var(--muted)]">Subtotal</span>
-                                        <span className="text-[var(--fg)] font-medium">PKR {cart.subtotal.toFixed(2)}</span>
+                                        <span className="text-[var(--fg)] font-medium">PKR {cart.subtotal().toFixed(2)}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
                                         <span className="text-[var(--muted)]">Tax (5%)</span>
-                                        <span className="text-[var(--fg)] font-medium">PKR {cart.tax.toFixed(2)}</span>
+                                        <span className="text-[var(--fg)] font-medium">PKR {cart.tax().toFixed(2)}</span>
                                     </div>
                                     <div className="flex justify-between text-lg font-bold pt-2 border-t border-[var(--border)]">
                                         <span className="text-[var(--fg)]">Total</span>
-                                        <span className="text-blue-600">PKR {cart.total.toFixed(2)}</span>
+                                        <span className="text-blue-600">PKR {cart.total().toFixed(2)}</span>
                                     </div>
                                 </div>
                                 <button
                                     onClick={placeOrder}
-                                    disabled={placing || !selectedTable || !selectedWaiter}
+                                    disabled={placing || !cart.tableId || !cart.waiterId}
                                     className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
                                     <CheckCircle className="w-5 h-5" />
-                                    {placing ? 'Placing...' : 'Place Order'}
+                                    {placing ? 'Placing...' :
+                                        cart.tableId && getTableStatus(cart.tableId).hasOrder
+                                            ? 'Add to Running Bill'
+                                            : 'Place Order'
+                                    }
                                 </button>
                             </div>
                         )}
                     </div>
                 </>
             )}
-        </div>
+        </>
     )
 }

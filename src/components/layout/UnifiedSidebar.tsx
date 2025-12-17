@@ -1,34 +1,46 @@
+// src/components/layout/UnifiedSidebar.tsx
 "use client"
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { UtensilsCrossed, LayoutGrid, ShoppingBag, Menu, X, Moon, Sun, Shield, ChefHat, TrendingUp } from 'lucide-react'
+import {
+    UtensilsCrossed, LayoutGrid, ShoppingBag, Menu, X, Moon, Sun, Shield,
+    Package, Users, ChefHat, Home, FileSpreadsheet
+} from 'lucide-react'
 import { useTheme } from '@/lib/store/theme-store'
 import { useHydration } from '@/lib/hooks/useHydration'
 
-// Update sidebar navigation
-const NAV_ITEMS = [
-    { label: 'Menu', icon: UtensilsCrossed, href: '/' },
-    { label: 'Tables', icon: LayoutGrid, href: '/tables' },
-    { label: 'Orders', icon: ShoppingBag, href: '/orders' },
-]
+const NAV = {
+    public: [
+        { label: 'Menu', icon: UtensilsCrossed, href: '/' },
+        { label: 'Tables', icon: LayoutGrid, href: '/tables' },
+        { label: 'Orders', icon: ShoppingBag, href: '/orders' },
+    ],
+    admin: [
+        { label: 'Dashboard', icon: Home, href: '/admin' },
+        { label: 'Inventory', icon: Package, href: '/admin/inventory' },
+        { label: 'Menu', icon: ChefHat, href: '/admin/menu' },
+        { label: 'Waiters', icon: Users, href: '/admin/waiters' },
+        { label: 'Tables', icon: LayoutGrid, href: '/admin/tables' },
+        { label: 'Reports', icon: FileSpreadsheet, href: '/admin/reports' },
+    ]
+}
 
-export default function PublicSidebar() {
+export default function UnifiedSidebar() {
     const pathname = usePathname()
     const { theme, toggleTheme } = useTheme()
     const [open, setOpen] = useState(false)
     const hydrated = useHydration()
 
-    // Don't render until hydrated to prevent mismatch
     if (!hydrated) return null
 
-    // Don't show on admin routes
-    if (pathname.startsWith('/admin')) return null
+    const isAdmin = pathname.startsWith('/admin')
+    const items = isAdmin ? NAV.admin : NAV.public
 
     return (
         <>
-            {/* Mobile Menu Button */}
+            {/* Mobile Toggle */}
             <button
                 onClick={() => setOpen(!open)}
                 className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg"
@@ -36,39 +48,29 @@ export default function PublicSidebar() {
                 {open ? <X className="w-5 h-5 text-[var(--fg)]" /> : <Menu className="w-5 h-5 text-[var(--fg)]" />}
             </button>
 
-            {/* Mobile Overlay */}
+            {/* Overlay */}
             {open && <div className="lg:hidden fixed inset-0 bg-black/60 z-40" onClick={() => setOpen(false)} />}
 
             {/* Sidebar */}
             <aside className={`fixed top-0 left-0 h-screen w-16 bg-[var(--card)] border-r border-[var(--border)] flex flex-col z-40 transition-transform ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
                 {/* Logo */}
-                <div className="h-16 flex items-center justify-center border-b border-[var(--border)]">
-                    <Link href="/">
-                        <div className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold text-lg hover:bg-blue-700 transition-colors">
-                            R
-                        </div>
-                    </Link>
-                </div>
+                <Link href={isAdmin ? '/admin' : '/'} className="h-16 flex items-center justify-center border-b border-[var(--border)]">
+                    <div className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold text-lg hover:bg-blue-700 transition-colors">
+                        R
+                    </div>
+                </Link>
 
-                {/* Navigation */}
+                {/* Nav */}
                 <nav className="flex-1 py-4 px-2 space-y-2">
-                    {NAV_ITEMS.map(item => {
+                    {items.map(item => {
                         const Icon = item.icon
-                        const active = pathname === item.href
+                        const active = pathname === item.href || (item.href !== '/admin' && item.href !== '/' && pathname.startsWith(item.href))
 
                         return (
-                            <Link
-                                key={item.href}
-                                href={item.href}
-                                onClick={() => setOpen(false)}
-                                className="group relative block"
-                                title={item.label}
-                            >
-                                <div className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all cursor-pointer ${active ? 'bg-blue-600 text-white shadow-lg' : 'text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)]'}`}>
+                            <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className="group relative block" title={item.label}>
+                                <div className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all ${active ? 'bg-blue-600 text-white shadow-lg' : 'text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)]'}`}>
                                     <Icon className="w-5 h-5" />
                                 </div>
-
-                                {/* Tooltip */}
                                 <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-[var(--fg)] text-[var(--bg)] rounded-lg text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity shadow-lg z-50">
                                     {item.label}
                                 </div>
@@ -79,7 +81,6 @@ export default function PublicSidebar() {
 
                 {/* Bottom Actions */}
                 <div className="p-2 border-t border-[var(--border)] space-y-2">
-                    {/* Theme Toggle */}
                     <button
                         onClick={toggleTheme}
                         className="w-12 h-12 rounded-lg flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all group relative"
@@ -91,15 +92,14 @@ export default function PublicSidebar() {
                         </div>
                     </button>
 
-                    {/* Admin Link */}
                     <Link
-                        href="/admin"
+                        href={isAdmin ? '/' : '/admin'}
                         className="w-12 h-12 rounded-lg flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-blue-600 transition-all group relative"
-                        title="Admin Panel"
+                        title={isAdmin ? 'Restaurant' : 'Admin'}
                     >
-                        <Shield className="w-5 h-5" />
+                        {isAdmin ? <UtensilsCrossed className="w-5 h-5" /> : <Shield className="w-5 h-5" />}
                         <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-[var(--fg)] text-[var(--bg)] rounded-lg text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity shadow-lg z-50">
-                            Admin Panel
+                            {isAdmin ? 'Restaurant' : 'Admin Panel'}
                         </div>
                     </Link>
                 </div>

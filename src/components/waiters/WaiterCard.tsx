@@ -3,6 +3,7 @@
 "use client";
 
 import { Edit2, Trash2, Eye, Clock, TrendingUp } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface WaiterCardProps {
     waiter: any;
@@ -13,8 +14,14 @@ interface WaiterCardProps {
 }
 
 export default function WaiterCard({ waiter, onView, onEdit, onDelete, onClockToggle }: WaiterCardProps) {
+    const router = useRouter();
+
     return (
-        <div className="p-5 rounded-xl border transition-all" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
+        <div
+            className="p-5 rounded-xl border transition-all cursor-pointer hover:shadow-xl"
+            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+            onClick={() => router.push(`/admin/waiters/${waiter.id}`)}
+        >
             {/* Header with Photo */}
             <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
@@ -66,21 +73,15 @@ export default function WaiterCard({ waiter, onView, onEdit, onDelete, onClockTo
                 </div>
             </div>
 
-            {/* Performance Badge */}
-            <div className="mb-4 px-3 py-2 rounded-lg" style={{ backgroundColor: 'var(--hover-bg)' }}>
-                <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>Performance</span>
-                    <span className="text-xs font-semibold" style={{
-                        color: waiter.performance_level === 'Excellent' ? '#10b981' :
-                            waiter.performance_level === 'Good' ? 'var(--accent)' : 'var(--muted)'
-                    }}>
-                        {waiter.performance_level || 'New'}
-                    </span>
-                </div>
+            {/* Click to View Stats Hint */}
+            <div className="mb-4 px-3 py-2 rounded-lg text-center" style={{ backgroundColor: '#3b82f610', borderLeft: '3px solid #3b82f6' }}>
+                <p className="text-xs font-medium" style={{ color: '#3b82f6' }}>
+                    📊 Click to view detailed statistics
+                </p>
             </div>
 
-            {/* Actions */}
-            <div className="flex gap-2">
+            {/* Actions - Stop Propagation to Prevent Navigation */}
+            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                 {/* Clock In/Out */}
                 <button
                     onClick={onClockToggle}
@@ -92,17 +93,6 @@ export default function WaiterCard({ waiter, onView, onEdit, onDelete, onClockTo
                 >
                     <Clock className="w-3.5 h-3.5" />
                     {waiter.is_on_duty ? 'Clock Out' : 'Clock In'}
-                </button>
-
-                {/* View */}
-                <button
-                    onClick={onView}
-                    className="px-3 py-2 rounded-lg text-xs font-medium transition-colors"
-                    style={{ backgroundColor: 'var(--hover-bg)', color: 'var(--fg)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--accent-subtle)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                >
-                    <Eye className="w-3.5 h-3.5 mx-auto" />
                 </button>
 
                 {/* Edit */}

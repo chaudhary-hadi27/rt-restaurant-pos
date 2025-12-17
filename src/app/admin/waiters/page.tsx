@@ -5,21 +5,22 @@
 "use client"
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSupabase } from '@/lib/hooks/useSupabase'
 import { uploadToCloudinary } from '@/lib/utils/cloudinary'
-import { Plus, Search, Edit2, Trash2, X, Upload, Phone, CreditCard, TrendingUp } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, X, Upload, Phone, TrendingUp } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
 
 export default function WaitersPage() {
+    const router = useRouter()
     const { data: waiters, loading, insert, update, remove } = useSupabase('waiters', {
         order: { column: 'created_at', ascending: false },
         realtime: true
     })
 
     const [search, setSearch] = useState('')
-    const [statsModal, setStatsModal] = useState<any>(null)
     const [editModal, setEditModal] = useState<any>(null)
     const [uploading, setUploading] = useState(false)
     const [form, setForm] = useState({
@@ -138,7 +139,11 @@ export default function WaitersPage() {
                         </thead>
                         <tbody className="divide-y divide-[var(--border)]">
                         {filtered.map(waiter => (
-                            <tr key={waiter.id} className="hover:bg-[var(--bg)] transition-colors">
+                            <tr
+                                key={waiter.id}
+                                onClick={() => router.push(`/admin/waiters/${waiter.id}`)}
+                                className="hover:bg-[var(--bg)] transition-colors cursor-pointer group"
+                            >
                                 {/* Staff Info */}
                                 <td className="px-4 py-4">
                                     <div className="flex items-center gap-3">
@@ -154,7 +159,9 @@ export default function WaitersPage() {
                                             </div>
                                         )}
                                         <div>
-                                            <p className="font-medium text-[var(--fg)]">{waiter.name}</p>
+                                            <p className="font-medium text-[var(--fg)] group-hover:text-blue-600 transition-colors">
+                                                {waiter.name}
+                                            </p>
                                             {waiter.cnic && (
                                                 <p className="text-xs text-[var(--muted)]">{waiter.cnic}</p>
                                             )}
@@ -172,9 +179,9 @@ export default function WaitersPage() {
 
                                 {/* Employee Type */}
                                 <td className="px-4 py-4">
-                                        <span className="inline-flex px-2.5 py-1 rounded-md text-xs font-medium bg-[var(--bg)] text-[var(--fg)] capitalize">
-                                            {waiter.employee_type}
-                                        </span>
+                                    <span className="inline-flex px-2.5 py-1 rounded-md text-xs font-medium bg-[var(--bg)] text-[var(--fg)] capitalize">
+                                        {waiter.employee_type}
+                                    </span>
                                 </td>
 
                                 {/* Performance */}
@@ -189,29 +196,29 @@ export default function WaitersPage() {
                                     </div>
                                 </td>
 
-                                {/* Actions */}
-                                <td className="px-4 py-4">
+                                {/* Actions - Stop propagation to prevent row click */}
+                                <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center justify-end gap-2">
                                         <button
-                                            onClick={() => setStatsModal(waiter)}
-                                            className="p-2 hover:bg-[var(--bg)] rounded-lg transition-colors group"
+                                            onClick={() => router.push(`/admin/waiters/${waiter.id}`)}
+                                            className="p-2 hover:bg-blue-600/10 rounded-lg transition-colors group/btn"
                                             title="View Stats"
                                         >
                                             <TrendingUp className="w-4 h-4 text-blue-600" />
                                         </button>
                                         <button
                                             onClick={() => openEdit(waiter)}
-                                            className="p-2 hover:bg-[var(--bg)] rounded-lg transition-colors group"
+                                            className="p-2 hover:bg-[var(--bg)] rounded-lg transition-colors group/btn"
                                             title="Edit"
                                         >
-                                            <Edit2 className="w-4 h-4 text-[var(--muted)] group-hover:text-[var(--fg)]" />
+                                            <Edit2 className="w-4 h-4 text-[var(--muted)] group-hover/btn:text-[var(--fg)]" />
                                         </button>
                                         <button
                                             onClick={() => deleteWaiter(waiter.id)}
-                                            className="p-2 hover:bg-[var(--bg)] rounded-lg transition-colors group"
+                                            className="p-2 hover:bg-red-600/10 rounded-lg transition-colors group/btn"
                                             title="Delete"
                                         >
-                                            <Trash2 className="w-4 h-4 text-[var(--muted)] group-hover:text-red-600" />
+                                            <Trash2 className="w-4 h-4 text-[var(--muted)] group-hover/btn:text-red-600" />
                                         </button>
                                     </div>
                                 </td>
@@ -327,71 +334,6 @@ export default function WaitersPage() {
                     />
                 </div>
             </Modal>
-
-            {/* Stats Modal */}
-            {statsModal && (
-                <Modal
-                    open={!!statsModal}
-                    onClose={() => setStatsModal(null)}
-                    title="Performance Statistics"
-                >
-                    <div className="space-y-4">
-                        {/* Profile Header */}
-                        <div className="flex items-center gap-4 pb-4 border-b border-[var(--border)]">
-                            {statsModal.profile_pic ? (
-                                <img src={statsModal.profile_pic} alt={statsModal.name} className="w-16 h-16 rounded-full object-cover border-2 border-[var(--border)]" />
-                            ) : (
-                                <div className="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-2xl">
-                                    {statsModal.name.charAt(0).toUpperCase()}
-                                </div>
-                            )}
-                            <div className="flex-1">
-                                <h3 className="font-semibold text-lg text-[var(--fg)]">{statsModal.name}</h3>
-                                <p className="text-sm text-[var(--muted)] capitalize">{statsModal.employee_type}</p>
-                                <p className="text-xs text-[var(--muted)] mt-1">{statsModal.phone}</p>
-                            </div>
-                        </div>
-
-                        {/* Stats Grid */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="p-4 bg-[var(--bg)] rounded-lg">
-                                <p className="text-xs text-[var(--muted)] mb-1">Total Orders</p>
-                                <p className="text-2xl font-bold text-[var(--fg)]">{statsModal.total_orders || 0}</p>
-                            </div>
-                            <div className="p-4 bg-[var(--bg)] rounded-lg">
-                                <p className="text-xs text-[var(--muted)] mb-1">Revenue</p>
-                                <p className="text-2xl font-bold text-[var(--fg)]">
-                                    {(statsModal.total_revenue || 0).toLocaleString()}
-                                </p>
-                            </div>
-                            <div className="p-4 bg-[var(--bg)] rounded-lg">
-                                <p className="text-xs text-[var(--muted)] mb-1">Avg Order</p>
-                                <p className="text-2xl font-bold text-[var(--fg)]">
-                                    {statsModal.total_orders > 0
-                                        ? Math.round(statsModal.total_revenue / statsModal.total_orders)
-                                        : 0}
-                                </p>
-                            </div>
-                            <div className="p-4 bg-[var(--bg)] rounded-lg">
-                                <p className="text-xs text-[var(--muted)] mb-1">Rating</p>
-                                <p className="text-2xl font-bold text-[var(--fg)]">
-                                    {(statsModal.avg_rating || 0).toFixed(1)} ⭐
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Performance Badge */}
-                        <div className="p-4 bg-blue-600/10 rounded-lg border border-blue-600/20">
-                            <p className="text-sm text-[var(--muted)] mb-1">Performance Level</p>
-                            <p className="text-lg font-semibold text-blue-600">
-                                {statsModal.total_orders >= 50 ? '⭐ Excellent' :
-                                    statsModal.total_orders >= 20 ? '👍 Good' :
-                                        '🆕 New'}
-                            </p>
-                        </div>
-                    </div>
-                </Modal>
-            )}
         </div>
     )
 }
