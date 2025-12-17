@@ -7,6 +7,7 @@ import Button from '@/components/ui/Button'
 import ReceiptModal from '@/components/features/receipt/ReceiptGenerator'
 import SplitBillModal from '@/components/features/split-bill/SplitBillModal'
 import { useToast } from '@/components/ui/Toast'
+import ContextActionsBar from '@/components/ui/ContextActionsBar'  // NEW
 
 export default function OrdersPage() {
     const [orders, setOrders] = useState<any[]>([])
@@ -54,13 +55,11 @@ export default function OrdersPage() {
 
         setClosingOrder(order.id)
         try {
-            // Mark order as completed
             await supabase
                 .from('orders')
                 .update({ status: 'completed' })
                 .eq('id', order.id)
 
-            // Free the table
             if (order.restaurant_tables?.id) {
                 await supabase
                     .from('restaurant_tables')
@@ -81,7 +80,6 @@ export default function OrdersPage() {
         setClosingOrder(null)
     }
 
-    // Filter: active = pending only, completed = completed
     const getFilteredOrders = () => {
         let filtered = orders
 
@@ -118,6 +116,30 @@ export default function OrdersPage() {
         return badges[status as keyof typeof badges] || badges.pending
     }
 
+    // NEW: Context Actions Handler
+    const handleContextAction = (actionId: string) => {
+        switch (actionId) {
+            case 'refresh':
+                load()
+                toast.add('success', '🔄 Orders refreshed')
+                break
+            case 'print-receipt':
+                if (filtered.length > 0 && filtered[0].status === 'pending') {
+                    setShowReceipt(filtered[0])
+                } else {
+                    toast.add('error', 'No active orders to print')
+                }
+                break
+            case 'split-bill':
+                if (filtered.length > 0 && filtered[0].status === 'pending') {
+                    setShowSplitBill(filtered[0])
+                } else {
+                    toast.add('error', 'No active orders to split')
+                }
+                break
+        }
+    }
+
     return (
         <div className="min-h-screen bg-[var(--bg)]">
             {/* Header */}
@@ -140,6 +162,9 @@ export default function OrdersPage() {
                     </div>
                 </div>
             </header>
+
+            {/* NEW: Context Actions Bar */}
+            <ContextActionsBar onAction={handleContextAction} />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
                 {/* Stats */}
@@ -258,7 +283,6 @@ export default function OrdersPage() {
 
                                         {/* Actions */}
                                         <div className="flex flex-wrap gap-2">
-                                            {/* Print Receipt */}
                                             <button
                                                 onClick={() => setShowReceipt(o)}
                                                 className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
@@ -267,7 +291,6 @@ export default function OrdersPage() {
                                                 Print Receipt
                                             </button>
 
-                                            {/* Split Bill */}
                                             <button
                                                 onClick={() => setShowSplitBill(o)}
                                                 className="px-4 py-2 bg-[var(--bg)] border border-[var(--border)] text-[var(--fg)] rounded-lg text-sm font-medium hover:bg-[var(--card)] transition-colors flex items-center gap-2"
@@ -276,7 +299,6 @@ export default function OrdersPage() {
                                                 Split Bill
                                             </button>
 
-                                            {/* Close Order (Only for pending) */}
                                             {o.status === 'pending' && (
                                                 <button
                                                     onClick={() => closeOrder(o)}

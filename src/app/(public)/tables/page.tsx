@@ -7,6 +7,8 @@ import { StatsGrid } from '@/components/ui/StatsGrid'
 import { DataTable } from '@/components/ui/DataTable'
 import { Search, RefreshCw, Eye, DollarSign } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import ContextActionsBar from '@/components/ui/ContextActionsBar'  // NEW
+import { useToast } from '@/components/ui/Toast'  // NEW
 
 export default function TablesPage() {
     const { data: tables, loading, refresh } = useSupabase('restaurant_tables', {
@@ -24,8 +26,8 @@ export default function TablesPage() {
     const [statusFilter, setStatusFilter] = useState('all')
     const [selectedTable, setSelectedTable] = useState<any>(null)
     const supabase = createClient()
+    const toast = useToast()  // NEW
 
-    // Load all orders with items
     useEffect(() => {
         loadOrders()
     }, [tables])
@@ -72,6 +74,25 @@ export default function TablesPage() {
             cleaning: '#3b82f6'
         }
         return colors[status as keyof typeof colors] || '#6b7280'
+    }
+
+    // NEW: Context Actions Handler
+    const handleContextAction = (actionId: string) => {
+        switch (actionId) {
+            case 'refresh':
+                refresh()
+                toast.add('success', '🔄 Tables refreshed')
+                break
+            case 'transfer-table':
+                const occupiedTable = filtered.find(t => t.status === 'occupied')
+                if (occupiedTable) {
+                    setSelectedTable(occupiedTable)
+                    toast.add('success', '📋 Select table to transfer')
+                } else {
+                    toast.add('error', 'No occupied tables to transfer')
+                }
+                break
+        }
     }
 
     const columns = [
@@ -196,6 +217,9 @@ export default function TablesPage() {
                 }
             />
 
+            {/* NEW: Context Actions Bar */}
+            <ContextActionsBar onAction={handleContextAction} />
+
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
                 <StatsGrid
                     stats={[
@@ -229,7 +253,6 @@ export default function TablesPage() {
             {selectedTable && (
                 <div className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/60" onClick={() => setSelectedTable(null)}>
                     <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                        {/* Header */}
                         <div className="p-6 border-b border-[var(--border)]">
                             <div className="flex items-center justify-between mb-2">
                                 <h3 className="text-2xl font-bold text-[var(--fg)]">
@@ -250,7 +273,6 @@ export default function TablesPage() {
                             </div>
                         </div>
 
-                        {/* Items */}
                         <div className="p-6">
                             <h4 className="font-semibold text-[var(--fg)] mb-4">Ordered Items</h4>
                             <div className="space-y-2">
@@ -268,7 +290,6 @@ export default function TablesPage() {
                             </div>
                         </div>
 
-                        {/* Total */}
                         <div className="p-6 border-t border-[var(--border)] bg-[var(--bg)]">
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-2">

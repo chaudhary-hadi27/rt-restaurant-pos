@@ -1,4 +1,3 @@
-// src/components/layout/UnifiedSidebar.tsx
 "use client"
 
 import Link from 'next/link'
@@ -6,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
     UtensilsCrossed, LayoutGrid, ShoppingBag, Menu, X, Moon, Sun, Shield,
-    Package, Users, ChefHat, Home, FileSpreadsheet
+    Package, Users, ChefHat, Home, FileSpreadsheet, Command
 } from 'lucide-react'
 import { useTheme } from '@/lib/store/theme-store'
 import { useHydration } from '@/lib/hooks/useHydration'
@@ -27,7 +26,12 @@ const NAV = {
     ]
 }
 
-export default function UnifiedSidebar() {
+// Add this prop interface
+interface UnifiedSidebarProps {
+    onCommandOpen?: () => void
+}
+
+export default function UnifiedSidebar({ onCommandOpen }: UnifiedSidebarProps) {
     const pathname = usePathname()
     const { theme, toggleTheme } = useTheme()
     const [open, setOpen] = useState(false)
@@ -81,6 +85,20 @@ export default function UnifiedSidebar() {
 
                 {/* Bottom Actions */}
                 <div className="p-2 border-t border-[var(--border)] space-y-2">
+                    {/* Command Palette Button */}
+                    <button
+                        onClick={() => onCommandOpen?.()}
+                        className="w-12 h-12 rounded-lg flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-blue-600 transition-all group relative"
+                        title="Quick Actions (Ctrl+K)"
+                    >
+                        <Command className="w-5 h-5" />
+                        <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-[var(--fg)] text-[var(--bg)] rounded-lg text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity shadow-lg z-50">
+                            Quick Actions
+                            <kbd className="ml-2 px-1.5 py-0.5 bg-[var(--bg)] text-[var(--fg)] text-xs rounded border">⌘K</kbd>
+                        </div>
+                    </button>
+
+                    {/* Theme Toggle */}
                     <button
                         onClick={toggleTheme}
                         className="w-12 h-12 rounded-lg flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all group relative"
@@ -92,6 +110,7 @@ export default function UnifiedSidebar() {
                         </div>
                     </button>
 
+                    {/* Admin/Restaurant Toggle */}
                     <Link
                         href={isAdmin ? '/' : '/admin'}
                         className="w-12 h-12 rounded-lg flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-blue-600 transition-all group relative"

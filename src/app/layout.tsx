@@ -4,6 +4,7 @@ import "./globals.css"
 import ThemeInitializer from "@/components/ThemeInitializer"
 import UnifiedSidebar from "@/components/layout/UnifiedSidebar"
 import ToastContainer from '@/components/ui/Toast'
+import CommandPaletteWrapper from '@/components/CommandPaletteWrapper'  // NEW
 
 const geist = Geist({
     variable: "--font-geist",
@@ -25,7 +26,9 @@ export default function RootLayout({
         <body className={`${geist.variable} antialiased`}>
         <ThemeInitializer />
         <ToastContainer />
-        <UnifiedSidebar />
+
+        {/* NEW: Wrapper component that handles sidebar + command palette */}
+        <CommandPaletteWrapper />
 
         {/* Main Content with proper margin */}
         <main className="lg:ml-16 min-h-screen">
