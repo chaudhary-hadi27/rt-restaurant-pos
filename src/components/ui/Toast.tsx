@@ -1,8 +1,8 @@
-// src/components/ui/Toast.tsx + Store
-"use client";
+// src/components/ui/Toast.tsx
+"use client"
+
 import { create } from 'zustand'
 import { CheckCircle, XCircle, AlertCircle, X } from 'lucide-react'
-import { useEffect } from 'react'
 
 type Toast = {
     id: string
@@ -32,7 +32,6 @@ export const useToast = create<ToastStore>((set) => ({
     }))
 }))
 
-// Toast Container Component
 export default function ToastContainer() {
     const { toasts, remove } = useToast()
 
@@ -74,4 +73,3 @@ export default function ToastContainer() {
         </div>
     )
 }
-

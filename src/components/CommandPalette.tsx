@@ -1,159 +1,76 @@
+// src/components/CommandPalette.tsx
+"use client"
+
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import {
-    Search, Plus, Eye, DollarSign, Package, Users, Settings,
-    UtensilsCrossed, ShoppingBag, LayoutGrid, Clock, TrendingUp,
-    FileSpreadsheet, LogIn, Printer, Shield
+    Search, Plus, Package, Users, UtensilsCrossed,
+    ShoppingBag, LayoutGrid, Clock, TrendingUp,
+    FileSpreadsheet, Shield, Printer, ArrowLeftRight, RefreshCw
 } from 'lucide-react'
 
-// All available actions
+interface CommandPaletteProps {
+    open: boolean
+    onClose: () => void
+}
+
 const ACTIONS = [
     // Restaurant Actions
-    {
-        id: 'new-order',
-        label: 'Start New Order',
-        icon: Plus,
-        href: '/',
-        category: 'restaurant',
-        keywords: ['order', 'new', 'menu', 'food']
-    },
-    {
-        id: 'view-tables',
-        label: 'View All Tables',
-        icon: LayoutGrid,
-        href: '/tables',
-        category: 'restaurant',
-        keywords: ['table', 'dining', 'seating']
-    },
-    {
-        id: 'view-orders',
-        label: 'View Orders',
-        icon: ShoppingBag,
-        href: '/orders',
-        category: 'restaurant',
-        keywords: ['order', 'bill', 'receipt']
-    },
+    { id: 'new-order', label: 'Start New Order', icon: Plus, href: '/', category: 'restaurant', keywords: ['order', 'new', 'menu', 'food'] },
+    { id: 'view-tables', label: 'View All Tables', icon: LayoutGrid, href: '/tables', category: 'restaurant', keywords: ['table', 'dining', 'seating'] },
+    { id: 'view-orders', label: 'View Orders', icon: ShoppingBag, href: '/orders', category: 'restaurant', keywords: ['order', 'bill', 'receipt'] },
 
     // Admin Actions
-    {
-        id: 'admin-dashboard',
-        label: 'Admin Dashboard',
-        icon: Shield,
-        href: '/admin',
-        category: 'admin',
-        keywords: ['admin', 'dashboard', 'overview']
-    },
-    {
-        id: 'manage-inventory',
-        label: 'Manage Inventory',
-        icon: Package,
-        href: '/admin/inventory',
-        category: 'admin',
-        keywords: ['inventory', 'stock', 'items', 'supplies']
-    },
-    {
-        id: 'manage-menu',
-        label: 'Manage Menu',
-        icon: UtensilsCrossed,
-        href: '/admin/menu',
-        category: 'admin',
-        keywords: ['menu', 'food', 'items', 'dishes']
-    },
-    {
-        id: 'manage-waiters',
-        label: 'Manage Staff',
-        icon: Users,
-        href: '/admin/waiters',
-        category: 'admin',
-        keywords: ['staff', 'waiter', 'employee', 'team']
-    },
-    {
-        id: 'manage-tables-admin',
-        label: 'Manage Tables (Admin)',
-        icon: LayoutGrid,
-        href: '/admin/tables',
-        category: 'admin',
-        keywords: ['table', 'setup', 'configure']
-    },
-    {
-        id: 'view-reports',
-        label: 'Sales Reports',
-        icon: FileSpreadsheet,
-        href: '/admin/reports',
-        category: 'admin',
-        keywords: ['report', 'sales', 'analytics', 'revenue']
-    },
-    {
-        id: 'manage-shifts',
-        label: 'Manage Shifts',
-        icon: Clock,
-        href: '/admin/shifts',
-        category: 'admin',
-        keywords: ['shift', 'schedule', 'clock', 'attendance']
-    },
-    {
-        id: 'manage-users',
-        label: 'Manage Admin Users',
-        icon: Shield,
-        href: '/admin/users',
-        category: 'admin',
-        keywords: ['admin', 'user', 'access', 'permission']
-    },
+    { id: 'admin-dashboard', label: 'Admin Dashboard', icon: Shield, href: '/admin', category: 'admin', keywords: ['admin', 'dashboard', 'overview'] },
+    { id: 'manage-inventory', label: 'Manage Inventory', icon: Package, href: '/admin/inventory', category: 'admin', keywords: ['inventory', 'stock', 'items', 'supplies'] },
+    { id: 'manage-menu', label: 'Manage Menu', icon: UtensilsCrossed, href: '/admin/menu', category: 'admin', keywords: ['menu', 'food', 'items', 'dishes'] },
+    { id: 'manage-waiters', label: 'Manage Staff', icon: Users, href: '/admin/waiters', category: 'admin', keywords: ['staff', 'waiter', 'employee', 'team'] },
+    { id: 'manage-tables-admin', label: 'Manage Tables (Admin)', icon: LayoutGrid, href: '/admin/tables', category: 'admin', keywords: ['table', 'setup', 'configure'] },
+    { id: 'view-reports', label: 'Sales Reports', icon: FileSpreadsheet, href: '/admin/reports', category: 'admin', keywords: ['report', 'sales', 'analytics', 'revenue'] },
+    { id: 'manage-shifts', label: 'Manage Shifts', icon: Clock, href: '/admin/shifts', category: 'admin', keywords: ['shift', 'schedule', 'clock', 'attendance'] }
 ]
 
-export default function CommandPalette() {
+export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
     const router = useRouter()
     const pathname = usePathname()
-    const [open, setOpen] = useState(false)
     const [search, setSearch] = useState('')
     const [selectedIndex, setSelectedIndex] = useState(0)
 
-    // Auto-detect current section
     const currentSection = pathname.startsWith('/admin') ? 'admin' : 'restaurant'
     const [activeCategory, setActiveCategory] = useState(currentSection)
 
-    // Update category when pathname changes
     useEffect(() => {
         setActiveCategory(pathname.startsWith('/admin') ? 'admin' : 'restaurant')
     }, [pathname])
 
-    // Keyboard shortcuts
     useEffect(() => {
+        if (!open) {
+            setSearch('')
+            setSelectedIndex(0)
+            return
+        }
+
         const down = (e: KeyboardEvent) => {
-            // Open/Close with Ctrl+K or Cmd+K
-            if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault()
-                setOpen(o => !o)
-            }
-
-            // Close with Escape
             if (e.key === 'Escape') {
-                setOpen(false)
-                setSearch('')
-                setSelectedIndex(0)
+                onClose()
             }
-
-            // Navigation with arrow keys
-            if (open) {
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault()
-                    setSelectedIndex(i => Math.min(i + 1, filtered.length - 1))
-                }
-                if (e.key === 'ArrowUp') {
-                    e.preventDefault()
-                    setSelectedIndex(i => Math.max(i - 1, 0))
-                }
-                if (e.key === 'Enter' && filtered[selectedIndex]) {
-                    e.preventDefault()
-                    handleSelect(filtered[selectedIndex])
-                }
+            if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setSelectedIndex(i => Math.min(i + 1, filtered.length - 1))
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setSelectedIndex(i => Math.max(i - 1, 0))
+            }
+            if (e.key === 'Enter' && filtered[selectedIndex]) {
+                e.preventDefault()
+                handleSelect(filtered[selectedIndex])
             }
         }
         document.addEventListener('keydown', down)
         return () => document.removeEventListener('keydown', down)
-    }, [open, search])
+    }, [open, search, selectedIndex])
 
-    // Filter actions
     const filtered = ACTIONS
         .filter(a => a.category === activeCategory)
         .filter(a => {
@@ -164,34 +81,24 @@ export default function CommandPalette() {
             )
         })
 
-    // Reset selected index when search changes
     useEffect(() => {
         setSelectedIndex(0)
     }, [search])
 
     const handleSelect = (action: typeof ACTIONS[0]) => {
         router.push(action.href)
-        setOpen(false)
-        setSearch('')
-        setSelectedIndex(0)
+        onClose()
     }
 
-    // No floating button - only sidebar and keyboard
     if (!open) return null
 
     return (
         <>
-            {/* Backdrop */}
-            <div
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]"
-                onClick={() => setOpen(false)}
-            />
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" onClick={onClose} />
 
-            {/* Command Palette */}
             <div className="fixed inset-0 z-[101] flex items-start justify-center pt-20 md:pt-32 px-4">
                 <div className="w-full max-w-2xl bg-[var(--card)] border-2 border-blue-600/50 rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-top-4 duration-200">
 
-                    {/* Search Header */}
                     <div className="flex items-center gap-3 px-4 py-4 border-b border-[var(--border)]">
                         <Search className="w-5 h-5 text-blue-600" />
                         <input
@@ -202,7 +109,6 @@ export default function CommandPalette() {
                             className="flex-1 bg-transparent outline-none text-[var(--fg)] placeholder:text-[var(--muted)] text-lg"
                         />
 
-                        {/* Category Toggle */}
                         <div className="flex gap-1 bg-[var(--bg)] rounded-lg p-1">
                             <button
                                 onClick={() => setActiveCategory('restaurant')}
@@ -227,7 +133,6 @@ export default function CommandPalette() {
                         </div>
                     </div>
 
-                    {/* Results */}
                     <div className="max-h-[60vh] overflow-y-auto p-2">
                         {filtered.length === 0 ? (
                             <div className="py-16 text-center">
@@ -285,27 +190,26 @@ export default function CommandPalette() {
                         )}
                     </div>
 
-                    {/* Footer */}
                     <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--bg)] flex items-center justify-between text-xs text-[var(--muted)]">
                         <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1">
-                <kbd className="px-2 py-0.5 bg-[var(--card)] rounded border border-[var(--border)]">↑</kbd>
-                <kbd className="px-2 py-0.5 bg-[var(--card)] rounded border border-[var(--border)]">↓</kbd>
-                Navigate
-              </span>
                             <span className="flex items-center gap-1">
-                <kbd className="px-2 py-0.5 bg-[var(--card)] rounded border border-[var(--border)]">↵</kbd>
-                Select
-              </span>
+                                <kbd className="px-2 py-0.5 bg-[var(--card)] rounded border border-[var(--border)]">↑</kbd>
+                                <kbd className="px-2 py-0.5 bg-[var(--card)] rounded border border-[var(--border)]">↓</kbd>
+                                Navigate
+                            </span>
                             <span className="flex items-center gap-1">
-                <kbd className="px-2 py-0.5 bg-[var(--card)] rounded border border-[var(--border)]">ESC</kbd>
-                Close
-              </span>
+                                <kbd className="px-2 py-0.5 bg-[var(--card)] rounded border border-[var(--border)]">↵</kbd>
+                                Select
+                            </span>
+                            <span className="flex items-center gap-1">
+                                <kbd className="px-2 py-0.5 bg-[var(--card)] rounded border border-[var(--border)]">ESC</kbd>
+                                Close
+                            </span>
                         </div>
                         <span>
-              <kbd className="px-2 py-0.5 bg-[var(--card)] rounded border border-[var(--border)]">⌘K</kbd>
+                            <kbd className="px-2 py-0.5 bg-[var(--card)] rounded border border-[var(--border)]">⌘K</kbd>
                             {' '}Quick Actions
-            </span>
+                        </span>
                     </div>
                 </div>
             </div>
