@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Clock, CheckCircle, Printer, Users, XCircle, Search, RefreshCw } from 'lucide-react'
-import Button from '@/components/ui/Button'
+import { Clock, CheckCircle, Printer, Users, Search, RefreshCw, Eye } from 'lucide-react'
 import ReceiptModal from '@/components/features/receipt/ReceiptGenerator'
 import SplitBillModal from '@/components/features/split-bill/SplitBillModal'
 import { useToast } from '@/components/ui/Toast'
-import ContextActionsBar from '@/components/ui/ContextActionsBar'  // NEW
+import ContextActionsBar from '@/components/ui/ContextActionsBar'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { DataTable } from '@/components/ui/DataTable'
 
 export default function OrdersPage() {
     const [orders, setOrders] = useState<any[]>([])
@@ -16,6 +17,7 @@ export default function OrdersPage() {
     const [search, setSearch] = useState('')
     const [showReceipt, setShowReceipt] = useState<any>(null)
     const [showSplitBill, setShowSplitBill] = useState<any>(null)
+    const [selectedOrder, setSelectedOrder] = useState<any>(null)
     const [closingOrder, setClosingOrder] = useState<string | null>(null)
     const supabase = createClient()
     const toast = useToast()
@@ -28,9 +30,7 @@ export default function OrdersPage() {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, load)
             .subscribe()
 
-        return () => {
-            supabase.removeChannel(channel)
-        }
+        return () => { supabase.removeChannel(channel) }
     }, [])
 
     const load = async () => {
@@ -51,149 +51,173 @@ export default function OrdersPage() {
     }
 
     const closeOrder = async (order: any) => {
-        if (!confirm('Close this order and free the table?')) return
+        if (!confirm('Complete this order and free the table?')) return
 
         setClosingOrder(order.id)
         try {
-            await supabase
-                .from('orders')
-                .update({ status: 'completed' })
-                .eq('id', order.id)
+            await supabase.from('orders').update({ status: 'completed' }).eq('id', order.id)
 
             if (order.restaurant_tables?.id) {
-                await supabase
-                    .from('restaurant_tables')
-                    .update({
-                        status: 'available',
-                        current_order_id: null,
-                        waiter_id: null
-                    })
-                    .eq('id', order.restaurant_tables.id)
+                await supabase.from('restaurant_tables').update({
+                    status: 'available',
+                    current_order_id: null,
+                    waiter_id: null
+                }).eq('id', order.restaurant_tables.id)
             }
 
-            toast.add('success', '✅ Order closed & table freed!')
+            toast.add('success', '✅ Order completed & table freed!')
+            setSelectedOrder(null)
             load()
         } catch (error) {
             console.error('Failed to close order:', error)
-            toast.add('error', 'Failed to close order')
+            toast.add('error', 'Failed to complete order')
         }
         setClosingOrder(null)
     }
 
-    const getFilteredOrders = () => {
-        let filtered = orders
-
-        if (filter === 'active') {
-            filtered = filtered.filter(o => o.status === 'pending')
-        } else if (filter === 'completed') {
-            filtered = filtered.filter(o => o.status === 'completed')
-        }
-
-        if (search) {
-            filtered = filtered.filter(o =>
-                o.id.toLowerCase().includes(search.toLowerCase()) ||
-                o.restaurant_tables?.table_number.toString().includes(search) ||
-                o.waiters?.name.toLowerCase().includes(search.toLowerCase())
-            )
-        }
-
-        return filtered
-    }
-
-    const filtered = getFilteredOrders()
+    const filtered = orders
+        .filter(o => filter === 'all' || (filter === 'active' ? o.status === 'pending' : o.status === 'completed'))
+        .filter(o => !search ||
+            o.id.toLowerCase().includes(search.toLowerCase()) ||
+            o.restaurant_tables?.table_number.toString().includes(search) ||
+            o.waiters?.name.toLowerCase().includes(search.toLowerCase())
+        )
 
     const stats = {
+        all: orders.length,
         active: orders.filter(o => o.status === 'pending').length,
         completed: orders.filter(o => o.status === 'completed').length
     }
 
-    const getStatusBadge = (status: string) => {
-        const badges = {
-            pending: { bg: 'bg-yellow-500/20', text: 'text-yellow-600', label: 'Pending' },
-            completed: { bg: 'bg-green-500/20', text: 'text-green-600', label: 'Completed' },
-            cancelled: { bg: 'bg-red-500/20', text: 'text-red-600', label: 'Cancelled' }
+    const handleContextAction = (actionId: string) => {
+        if (actionId === 'refresh') {
+            load()
+            toast.add('success', '🔄 Orders refreshed')
+        } else if (actionId === 'print-receipt' && filtered[0]?.status === 'pending') {
+            setShowReceipt(filtered[0])
+        } else if (actionId === 'split-bill' && filtered[0]?.status === 'pending') {
+            setShowSplitBill(filtered[0])
+        } else {
+            toast.add('error', 'No active orders available')
         }
-        return badges[status as keyof typeof badges] || badges.pending
     }
 
-    // NEW: Context Actions Handler
-    const handleContextAction = (actionId: string) => {
-        switch (actionId) {
-            case 'refresh':
-                load()
-                toast.add('success', '🔄 Orders refreshed')
-                break
-            case 'print-receipt':
-                if (filtered.length > 0 && filtered[0].status === 'pending') {
-                    setShowReceipt(filtered[0])
-                } else {
-                    toast.add('error', 'No active orders to print')
+    const columns = [
+        {
+            key: 'order',
+            label: 'Order',
+            render: (row: any) => (
+                <div>
+                    <p className="font-medium text-[var(--fg)]">#{row.id.slice(0, 8).toUpperCase()}</p>
+                    <p className="text-xs text-[var(--muted)]">{new Date(row.created_at).toLocaleString()}</p>
+                </div>
+            )
+        },
+        {
+            key: 'table',
+            label: 'Table',
+            render: (row: any) => (
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
+                        {row.restaurant_tables?.table_number || '?'}
+                    </div>
+                    <span className="text-sm text-[var(--fg)]">Table {row.restaurant_tables?.table_number || 'N/A'}</span>
+                </div>
+            )
+        },
+        {
+            key: 'waiter',
+            label: 'Waiter',
+            render: (row: any) => (
+                <span className="text-sm text-[var(--fg)]">{row.waiters?.name || 'N/A'}</span>
+            )
+        },
+        {
+            key: 'items',
+            label: 'Items',
+            render: (row: any) => (
+                <span className="text-sm text-[var(--fg)]">{row.order_items?.length || 0} items</span>
+            )
+        },
+        {
+            key: 'status',
+            label: 'Status',
+            render: (row: any) => {
+                const statusColors = {
+                    pending: { bg: 'bg-yellow-500/20', text: 'text-yellow-600', label: '🔄 Active' },
+                    completed: { bg: 'bg-green-500/20', text: 'text-green-600', label: '✅ Completed' },
+                    cancelled: { bg: 'bg-red-500/20', text: 'text-red-600', label: '❌ Cancelled' }
                 }
-                break
-            case 'split-bill':
-                if (filtered.length > 0 && filtered[0].status === 'pending') {
-                    setShowSplitBill(filtered[0])
-                } else {
-                    toast.add('error', 'No active orders to split')
-                }
-                break
+                const status = statusColors[row.status as keyof typeof statusColors] || statusColors.pending
+                return (
+                    <span className={`inline-flex px-2.5 py-1 rounded-md text-xs font-semibold ${status.bg} ${status.text}`}>
+                        {status.label}
+                    </span>
+                )
+            }
+        },
+        {
+            key: 'amount',
+            label: 'Amount',
+            align: 'right' as const,
+            render: (row: any) => (
+                <div>
+                    <p className="text-lg font-bold text-blue-600">PKR {row.total_amount.toLocaleString()}</p>
+                    <p className="text-xs text-[var(--muted)]">Tax: PKR {row.tax.toFixed(2)}</p>
+                </div>
+            )
+        },
+        {
+            key: 'actions',
+            label: 'Actions',
+            align: 'right' as const,
+            render: (row: any) => (
+                <button
+                    onClick={() => setSelectedOrder(row)}
+                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-2"
+                >
+                    <Eye className="w-4 h-4" />
+                    View
+                </button>
+            )
         }
-    }
+    ]
 
     return (
         <div className="min-h-screen bg-[var(--bg)]">
-            {/* Header */}
-            <header className="sticky top-0 z-30 bg-[var(--card)] border-b border-[var(--border)]">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-2xl font-bold text-[var(--fg)]">Orders Management</h1>
-                            <p className="text-sm text-[var(--muted)] mt-1">
-                                {stats.active} active • {stats.completed} completed today
-                            </p>
-                        </div>
-                        <button
-                            onClick={load}
-                            className="p-2 hover:bg-[var(--bg)] rounded-lg transition-colors"
-                            title="Refresh"
-                        >
-                            <RefreshCw className="w-5 h-5 text-[var(--muted)]" />
-                        </button>
-                    </div>
-                </div>
-            </header>
+            <PageHeader
+                title="Orders Management"
+                subtitle={`${stats.active} active • ${stats.completed} completed today`}
+                action={
+                    <button onClick={load} className="p-2 hover:bg-[var(--bg)] rounded-lg transition-colors" title="Refresh">
+                        <RefreshCw className="w-5 h-5 text-[var(--muted)]" />
+                    </button>
+                }
+            />
 
-            {/* NEW: Context Actions Bar */}
             <ContextActionsBar onAction={handleContextAction} />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
                 {/* Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div
-                        onClick={() => setFilter('active')}
-                        className={`p-6 rounded-xl cursor-pointer transition-all ${
-                            filter === 'active'
-                                ? 'bg-yellow-600 text-white shadow-lg scale-105'
-                                : 'bg-[var(--card)] border border-[var(--border)] hover:shadow-lg'
-                        }`}
-                    >
-                        <Clock className="w-8 h-8 mb-3" style={{ color: filter === 'active' ? '#fff' : '#f59e0b' }} />
-                        <p className="text-xs font-medium uppercase tracking-wider mb-1" style={{ opacity: 0.8 }}>Active Orders</p>
-                        <p className="text-4xl font-bold">{stats.active}</p>
-                    </div>
-
-                    <div
-                        onClick={() => setFilter('completed')}
-                        className={`p-6 rounded-xl cursor-pointer transition-all ${
-                            filter === 'completed'
-                                ? 'bg-green-600 text-white shadow-lg scale-105'
-                                : 'bg-[var(--card)] border border-[var(--border)] hover:shadow-lg'
-                        }`}
-                    >
-                        <CheckCircle className="w-8 h-8 mb-3" style={{ color: filter === 'completed' ? '#fff' : '#10b981' }} />
-                        <p className="text-xs font-medium uppercase tracking-wider mb-1" style={{ opacity: 0.8 }}>Completed</p>
-                        <p className="text-4xl font-bold">{stats.completed}</p>
-                    </div>
+                <div className="grid grid-cols-3 gap-4">
+                    {[
+                        { key: 'active', label: 'Active', value: stats.active, icon: Clock },
+                        { key: 'completed', label: 'Completed', value: stats.completed, icon: CheckCircle },
+                        { key: 'all', label: 'Total', value: stats.all, icon: Clock }
+                    ].map(stat => (
+                        <button
+                            key={stat.key}
+                            onClick={() => setFilter(stat.key)}
+                            className={`p-4 rounded-lg border transition-all text-left ${
+                                filter === stat.key
+                                    ? 'bg-blue-600/10 border-blue-600'
+                                    : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--fg)]'
+                            }`}
+                        >
+                            <p className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2">{stat.label}</p>
+                            <p className="text-3xl font-bold text-[var(--fg)]">{stat.value}</p>
+                        </button>
+                    ))}
                 </div>
 
                 {/* Search */}
@@ -208,123 +232,95 @@ export default function OrdersPage() {
                     />
                 </div>
 
-                {/* Orders List */}
-                {loading ? (
-                    <div className="flex justify-center py-20">
-                        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                ) : filtered.length === 0 ? (
-                    <div className="text-center py-20 bg-[var(--card)] border border-[var(--border)] rounded-xl">
-                        <Clock className="w-16 h-16 mx-auto mb-4 opacity-20" style={{ color: 'var(--fg)' }} />
-                        <p className="text-[var(--fg)] font-medium mb-1">No orders found</p>
-                        <p className="text-sm text-[var(--muted)]">
-                            {filter === 'active' ? 'No active orders right now' : 'No completed orders'}
-                        </p>
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        {filtered.map(o => {
-                            const statusBadge = getStatusBadge(o.status)
-
-                            return (
-                                <div key={o.id} className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden hover:shadow-lg transition-all">
-                                    {/* Order Header */}
-                                    <div className="p-5 border-b border-[var(--border)] bg-[var(--bg)]">
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-3 mb-2">
-                                                    <h3 className="text-lg font-bold text-[var(--fg)]">
-                                                        Order #{o.id.slice(0, 8).toUpperCase()}
-                                                    </h3>
-                                                    <span className={`px-3 py-1 rounded-md text-xs font-bold capitalize ${statusBadge.bg} ${statusBadge.text}`}>
-                                                        {statusBadge.label}
-                                                    </span>
-                                                    {o.status === 'pending' && (
-                                                        <span className="px-3 py-1 rounded-md text-xs font-bold bg-orange-500/20 text-orange-600">
-                                                            🔄 Running Bill
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-4 text-sm text-[var(--muted)]">
-                                                    <span className="flex items-center gap-1">
-                                                        <span className="font-medium text-[var(--fg)]">Table</span> {o.restaurant_tables?.table_number || 'N/A'}
-                                                    </span>
-                                                    <span>•</span>
-                                                    <span className="flex items-center gap-1">
-                                                        <span className="font-medium text-[var(--fg)]">Waiter</span> {o.waiters?.name || 'N/A'}
-                                                    </span>
-                                                    <span>•</span>
-                                                    <span>{new Date(o.created_at).toLocaleString()}</span>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-sm text-[var(--muted)] mb-1">Total Amount</p>
-                                                <p className="text-2xl font-bold text-blue-600">PKR {o.total_amount.toLocaleString()}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Order Items */}
-                                    <div className="p-5">
-                                        <h4 className="text-sm font-semibold text-[var(--fg)] mb-3">Items ({o.order_items?.length || 0})</h4>
-                                        <div className="space-y-2 mb-4">
-                                            {o.order_items?.map((item: any) => (
-                                                <div key={item.id} className="flex items-center justify-between p-3 bg-[var(--bg)] rounded-lg">
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-600 flex items-center justify-center font-bold text-sm">
-                                                            {item.quantity}×
-                                                        </span>
-                                                        <span className="font-medium text-[var(--fg)]">{item.menu_items?.name || 'Unknown Item'}</span>
-                                                    </div>
-                                                    <span className="font-semibold text-[var(--fg)]">PKR {item.total_price.toLocaleString()}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        {/* Actions */}
-                                        <div className="flex flex-wrap gap-2">
-                                            <button
-                                                onClick={() => setShowReceipt(o)}
-                                                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
-                                            >
-                                                <Printer className="w-4 h-4" />
-                                                Print Receipt
-                                            </button>
-
-                                            <button
-                                                onClick={() => setShowSplitBill(o)}
-                                                className="px-4 py-2 bg-[var(--bg)] border border-[var(--border)] text-[var(--fg)] rounded-lg text-sm font-medium hover:bg-[var(--card)] transition-colors flex items-center gap-2"
-                                            >
-                                                <Users className="w-4 h-4" />
-                                                Split Bill
-                                            </button>
-
-                                            {o.status === 'pending' && (
-                                                <button
-                                                    onClick={() => closeOrder(o)}
-                                                    disabled={closingOrder === o.id}
-                                                    className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
-                                                >
-                                                    <CheckCircle className="w-4 h-4" />
-                                                    {closingOrder === o.id ? 'Closing...' : 'Complete & Close'}
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </div>
-                )}
+                {/* Orders Table */}
+                <DataTable columns={columns} data={filtered} loading={loading} emptyMessage="No orders found" />
             </div>
 
+            {/* Order Details Modal */}
+            {selectedOrder && (
+                <div className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/60" onClick={() => setSelectedOrder(null)}>
+                    <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-[var(--border)]">
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-2xl font-bold text-[var(--fg)]">Order #{selectedOrder.id.slice(0, 8).toUpperCase()}</h3>
+                                <button onClick={() => setSelectedOrder(null)} className="p-2 hover:bg-[var(--bg)] rounded-lg">
+                                    <span className="text-2xl text-[var(--muted)]">×</span>
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-[var(--muted)]">
+                                <span>Table {selectedOrder.restaurant_tables?.table_number}</span>
+                                <span>•</span>
+                                <span>Waiter: {selectedOrder.waiters?.name}</span>
+                                <span>•</span>
+                                <span>{new Date(selectedOrder.created_at).toLocaleString()}</span>
+                            </div>
+                        </div>
+
+                        <div className="p-6">
+                            <h4 className="font-semibold text-[var(--fg)] mb-4">Items ({selectedOrder.order_items?.length})</h4>
+                            <div className="space-y-2 mb-6">
+                                {selectedOrder.order_items?.map((item: any) => (
+                                    <div key={item.id} className="flex items-center justify-between p-3 bg-[var(--bg)] rounded-lg">
+                                        <div className="flex items-center gap-3">
+                                            <span className="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-600 flex items-center justify-center font-bold text-sm">
+                                                {item.quantity}×
+                                            </span>
+                                            <span className="font-medium text-[var(--fg)]">{item.menu_items?.name}</span>
+                                        </div>
+                                        <span className="font-bold text-[var(--fg)]">PKR {item.total_price}</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="space-y-2 p-4 bg-[var(--bg)] rounded-lg mb-4">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-[var(--muted)]">Subtotal</span>
+                                    <span className="text-[var(--fg)] font-medium">PKR {selectedOrder.subtotal.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-[var(--muted)]">Tax (5%)</span>
+                                    <span className="text-[var(--fg)] font-medium">PKR {selectedOrder.tax.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-lg font-bold pt-2 border-t border-[var(--border)]">
+                                    <span className="text-[var(--fg)]">Total</span>
+                                    <span className="text-blue-600">PKR {selectedOrder.total_amount.toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 border-t border-[var(--border)] flex gap-3">
+                            <button
+                                onClick={() => setShowReceipt(selectedOrder)}
+                                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
+                            >
+                                <Printer className="w-4 h-4" />
+                                Print Receipt
+                            </button>
+                            <button
+                                onClick={() => setShowSplitBill(selectedOrder)}
+                                className="flex-1 px-4 py-2.5 bg-[var(--bg)] text-[var(--fg)] border border-[var(--border)] rounded-lg hover:bg-[var(--card)] font-medium flex items-center justify-center gap-2"
+                            >
+                                <Users className="w-4 h-4" />
+                                Split Bill
+                            </button>
+                            {selectedOrder.status === 'pending' && (
+                                <button
+                                    onClick={() => closeOrder(selectedOrder)}
+                                    disabled={closingOrder === selectedOrder.id}
+                                    className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    <CheckCircle className="w-4 h-4" />
+                                    {closingOrder === selectedOrder.id ? 'Closing...' : 'Complete'}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Modals */}
-            {showReceipt && (
-                <ReceiptModal order={showReceipt} onClose={() => setShowReceipt(null)} />
-            )}
-            {showSplitBill && (
-                <SplitBillModal order={showSplitBill} onClose={() => setShowSplitBill(null)} />
-            )}
+            {showReceipt && <ReceiptModal order={showReceipt} onClose={() => setShowReceipt(null)} />}
+            {showSplitBill && <SplitBillModal order={showSplitBill} onClose={() => setShowSplitBill(null)} />}
         </div>
     )
 }

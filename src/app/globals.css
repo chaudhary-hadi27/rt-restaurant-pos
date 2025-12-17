@@ -23,3 +23,13 @@
     --blue-hover: #2563eb;
     --blue-bg: rgba(59, 130, 246, 0.1);
 }
+
+/* Scrollbar hide utility */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}

@@ -98,17 +98,6 @@ export default function NestedSidebar({ title, items, isOpen = true, onClose }: 
                     ))}
                 </div>
             </div>
-
-            {/* Add scrollbar hiding CSS */}
-            <style jsx global>{`
-                .scrollbar-hide::-webkit-scrollbar {
-                    display: none;
-                }
-                .scrollbar-hide {
-                    -ms-overflow-style: none;
-                    scrollbar-width: none;
-                }
-            `}</style>
         </>
     )
 }
