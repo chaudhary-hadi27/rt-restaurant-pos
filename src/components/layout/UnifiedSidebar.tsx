@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
     UtensilsCrossed, LayoutGrid, ShoppingBag, Menu, X, Moon, Sun, Shield,
-    Package, Users, ChefHat, Home, FileSpreadsheet, Command
+    Package, Users, ChefHat, Home, FileSpreadsheet, Command, Clock
 } from 'lucide-react'
 import { useTheme } from '@/lib/store/theme-store'
 import { useHydration } from '@/lib/hooks/useHydration'
@@ -23,6 +23,7 @@ const NAV = {
         { label: 'Waiters', icon: Users, href: '/admin/waiters' },
         { label: 'Tables', icon: LayoutGrid, href: '/admin/tables' },
         { label: 'Reports', icon: FileSpreadsheet, href: '/admin/reports' },
+        { label: 'History', icon: Clock, href: '/admin/history' },
     ]
 }
 

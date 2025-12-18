@@ -221,9 +221,9 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
                                 <div className="space-y-2">
                                     {Object.keys(groupedItems)
                                         .filter(catId => !categories.find(c => c.id === catId))
-                                        .map(catId =>
-                                            groupedItems[catId].map((item: any) => (
-                                                <div key={item.id} className="text-sm">
+                                        .map((catId, catIndex) =>
+                                            groupedItems[catId].map((item: any, itemIndex: number) => (
+                                                <div key={`uncategorized-${catId}-${item.id}-${catIndex}-${itemIndex}`} className="text-sm">
                                                     <div className="flex justify-between">
                                                         <span style={{ color: 'var(--fg)' }}>
                                                             {item.quantity}x {item.menu_items.name}

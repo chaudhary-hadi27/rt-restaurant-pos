@@ -5,12 +5,41 @@ import { useCart } from '@/lib/store/cart-store'
 import { Plus, Minus, X, CheckCircle, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
+import ReceiptModal from '@/components/features/receipt/ReceiptGenerator'
+
+interface Table {
+    id: string
+    table_number: number
+    section: string
+    status: string
+    current_order_id: string | null
+}
+
+interface Waiter {
+    id: string
+    name: string
+}
 
 interface CartDrawerProps {
     isOpen: boolean
     onClose: () => void
-    tables: any[]
-    waiters: any[]
+    tables: Table[]
+    waiters: Waiter[]
+}
+
+interface ReceiptOrder {
+    id: string
+    restaurant_tables: { table_number: number }
+    waiters: { name: string }
+    order_items: Array<{
+        menu_items: { name: string; price: number }
+        quantity: number
+        total_price: number
+    }>
+    subtotal: number
+    tax: number
+    total_amount: number
+    created_at: string
 }
 
 export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDrawerProps) {
@@ -18,6 +47,7 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
     const toast = useToast()
     const supabase = createClient()
     const [placing, setPlacing] = useState(false)
+    const [showReceipt, setShowReceipt] = useState<ReceiptOrder | null>(null)
 
     const getTableStatus = (tableId: string) => {
         const table = tables.find(t => t.id === tableId)
@@ -31,6 +61,7 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
         setPlacing(true)
         try {
             const table = tables.find(t => t.id === cart.tableId)
+            const selectedWaiter = waiters.find(w => w.id === cart.waiterId)
             let orderId = table?.current_order_id
             const isNewOrder = !orderId
 
@@ -64,15 +95,17 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                     .eq('id', orderId)
                     .single()
 
-                const newSubtotal = existing.subtotal + cart.subtotal()
-                const newTax = newSubtotal * 0.05
+                if (existing) {
+                    const newSubtotal = existing.subtotal + cart.subtotal()
+                    const newTax = newSubtotal * 0.05
 
-                await supabase.from('orders').update({
-                    subtotal: newSubtotal,
-                    tax: newTax,
-                    total_amount: newSubtotal + newTax,
-                    notes: cart.notes || existing.notes
-                }).eq('id', orderId)
+                    await supabase.from('orders').update({
+                        subtotal: newSubtotal,
+                        tax: newTax,
+                        total_amount: newSubtotal + newTax,
+                        notes: cart.notes || existing.notes
+                    }).eq('id', orderId)
+                }
             }
 
             await supabase.from('order_items').insert(
@@ -91,14 +124,48 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                 p_revenue: cart.total()
             })
 
+            // 🎯 AUTO-GENERATE RECEIPT DATA
+            const receiptData: ReceiptOrder = {
+                id: orderId!,
+                restaurant_tables: {
+                    table_number: table?.table_number || 0
+                },
+                waiters: {
+                    name: selectedWaiter?.name || 'Unknown'
+                },
+                order_items: cart.items.map(item => ({
+                    menu_items: {
+                        name: item.name,
+                        price: item.price
+                    },
+                    quantity: item.quantity,
+                    total_price: item.price * item.quantity
+                })),
+                subtotal: cart.subtotal(),
+                tax: cart.tax(),
+                total_amount: cart.total(),
+                created_at: new Date().toISOString()
+            }
+
+            // ✅ SHOW RECEIPT AUTOMATICALLY
+            setShowReceipt(receiptData)
+
             toast.add('success', isNewOrder ? '✅ New order started!' : '✅ Items added to order!')
             cart.clearCart()
-            onClose()
+
+            // Note: Don't close drawer immediately, let receipt print first
+            // onClose() will be called when receipt modal closes
         } catch (error) {
             console.error('Order failed:', error)
             toast.add('error', 'Failed to place order')
+            setPlacing(false)
         }
+    }
+
+    const handleReceiptClose = () => {
+        setShowReceipt(null)
         setPlacing(false)
+        onClose() // Close drawer after receipt is done
     }
 
     if (!isOpen) return null
@@ -232,6 +299,14 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                     </div>
                 )}
             </div>
+
+            {/* 🎯 AUTO RECEIPT MODAL - Opens automatically after order placement */}
+            {showReceipt && (
+                <ReceiptModal
+                    order={showReceipt}
+                    onClose={handleReceiptClose}
+                />
+            )}
         </>
     )
 }
