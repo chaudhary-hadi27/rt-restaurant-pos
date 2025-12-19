@@ -2,113 +2,54 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
-
-interface AdminUser {
-    id: string
-    name: string
-    email: string
-    role: 'admin' | 'super_admin'
-    permissions: Record<string, boolean>
-    profile_pic?: string
-}
+import { useRouter, usePathname } from 'next/navigation'
 
 export function useAdminAuth() {
-    const [admin, setAdmin] = useState<AdminUser | null>(null)
+    const [isAuthenticated, setIsAuthenticated] = useState(false)
     const [loading, setLoading] = useState(true)
     const router = useRouter()
-    const supabase = createClient()
+    const pathname = usePathname()
 
     useEffect(() => {
-        checkAuth()
-    }, [])
+        const auth = sessionStorage.getItem('admin_auth') === 'true'
+        setIsAuthenticated(auth)
+        setLoading(false)
 
-    const checkAuth = async () => {
+        // Auto-redirect if not authenticated
+        if (!auth && !pathname.includes('/login') && !pathname.includes('/forgot-password')) {
+            router.push('/admin/login')
+        }
+    }, [pathname])
+
+    const login = async (password: string) => {
+        setLoading(true)
         try {
-            const sessionData = sessionStorage.getItem('admin_session')
-            if (!sessionData) {
-                setLoading(false)
-                return
-            }
-
-            const { adminId, token } = JSON.parse(sessionData)
-
-            // Verify session with backend
-            const response = await fetch('/api/auth/verify-session', {
+            const res = await fetch('/api/auth/verify-admin', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ adminId, token })
+                body: JSON.stringify({ password })
             })
 
-            if (!response.ok) throw new Error('Session invalid')
-
-            const { data: adminData } = await supabase
-                .from('admins')
-                .select('id, name, email, role, permissions, profile_pic')
-                .eq('id', adminId)
-                .eq('is_active', true)
-                .single()
-
-            if (adminData) {
-                setAdmin(adminData)
-            } else {
-                logout()
+            if (res.ok) {
+                sessionStorage.setItem('admin_auth', 'true')
+                setIsAuthenticated(true)
+                return { success: true }
             }
+
+            const data = await res.json()
+            return { success: false, error: data.error || 'Invalid password' }
         } catch (error) {
-            console.error('Auth check failed:', error)
-            logout()
+            return { success: false, error: 'Network error' }
         } finally {
             setLoading(false)
         }
     }
 
-    const login = async (email: string, password: string) => {
-        try {
-            const response = await fetch('/api/auth/admin-login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            })
-
-            const data = await response.json()
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Login failed')
-            }
-
-            // Store session
-            sessionStorage.setItem('admin_session', JSON.stringify({
-                adminId: data.admin.id,
-                token: data.token
-            }))
-
-            setAdmin(data.admin)
-            return { success: true }
-        } catch (error: any) {
-            return { success: false, error: error.message }
-        }
-    }
-
     const logout = () => {
-        sessionStorage.removeItem('admin_session')
-        setAdmin(null)
+        sessionStorage.removeItem('admin_auth')
+        setIsAuthenticated(false)
         router.push('/admin/login')
     }
 
-    const hasPermission = (permission: string) => {
-        if (!admin) return false
-        if (admin.role === 'super_admin') return true
-        return admin.permissions?.[permission] === true
-    }
-
-    return {
-        admin,
-        loading,
-        isAuthenticated: !!admin,
-        login,
-        logout,
-        hasPermission,
-        refresh: checkAuth
-    }
+    return { isAuthenticated, loading, login, logout }
 }
