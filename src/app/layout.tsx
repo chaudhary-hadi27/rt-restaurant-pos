@@ -2,9 +2,9 @@ import type { Metadata } from "next"
 import { Geist } from "next/font/google"
 import "./globals.css"
 import ThemeInitializer from "@/components/ThemeInitializer"
-import UnifiedSidebar from "@/components/layout/UnifiedSidebar"
 import ToastContainer from '@/components/ui/Toast'
-import CommandPaletteWrapper from '@/components/CommandPaletteWrapper'  // NEW
+import CommandPaletteWrapper from '@/components/CommandPaletteWrapper'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 const geist = Geist({
     variable: "--font-geist",
@@ -24,16 +24,15 @@ export default function RootLayout({
     return (
         <html lang="en" suppressHydrationWarning>
         <body className={`${geist.variable} antialiased`}>
-        <ThemeInitializer />
-        <ToastContainer />
+        <ErrorBoundary>
+            <ThemeInitializer />
+            <ToastContainer />
+            <CommandPaletteWrapper />
 
-        {/* NEW: Wrapper component that handles sidebar + command palette */}
-        <CommandPaletteWrapper />
-
-        {/* Main Content with proper margin */}
-        <main className="lg:ml-16 min-h-screen">
-            {children}
-        </main>
+            <main className="lg:ml-16 min-h-screen">
+                {children}
+            </main>
+        </ErrorBoundary>
         </body>
         </html>
     )
