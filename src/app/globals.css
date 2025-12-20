@@ -1,27 +1,189 @@
 @import "tailwindcss";
 
-:root {
-    --bg: #0a0a0a;
-    --card: #141414;
-    --border: #1f1f1f;
-    --fg: #ffffff;
-    --muted: #888888;
-}
+/* ============================================
+   DESIGN TOKEN SYSTEM
+   ============================================ */
 
-:root.light {
+:root {
+    /* Light Theme (Default) */
+
+    /* Background Colors */
     --bg: #ffffff;
     --card: #f8f9fa;
     --border: #e5e7eb;
+
+    /* Foreground Colors */
     --fg: #0a0a0a;
     --muted: #6b7280;
+
+    /* Semantic Backgrounds */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --bg-tertiary: #f1f3f5;
+    --bg-hover: #e9ecef;
+    --bg-active: #dee2e6;
+
+    /* Semantic Foregrounds */
+    --fg-primary: #0a0a0a;
+    --fg-secondary: #495057;
+    --fg-tertiary: #6c757d;
+    --fg-muted: #adb5bd;
+
+    /* Border Colors */
+    --border-default: #e5e7eb;
+    --border-hover: #d1d5db;
+    --border-focus: #3b82f6;
+
+    /* Brand Colors */
+    --brand-primary: #3b82f6;
+    --brand-primary-hover: #2563eb;
+    --brand-secondary: #8b5cf6;
+    --brand-accent: #f59e0b;
+
+    /* Status Colors */
+    --status-success: #10b981;
+    --status-success-bg: #d1fae5;
+    --status-warning: #f59e0b;
+    --status-warning-bg: #fef3c7;
+    --status-error: #ef4444;
+    --status-error-bg: #fee2e2;
+    --status-info: #3b82f6;
+    --status-info-bg: #dbeafe;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+
+    /* Transitions */
+    --transition-fast: 150ms ease;
+    --transition-base: 200ms ease;
+    --transition-slow: 300ms ease;
 }
 
-.scrollbar-hide::-webkit-scrollbar { display: none; }
-.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+/* Dark Theme */
+:root.dark,
+[data-theme="dark"] {
+    /* Background Colors */
+    --bg: #0a0a0a;
+    --card: #141414;
+    --border: #1f1f1f;
 
-/* Mobile touch improvements */
+    /* Foreground Colors */
+    --fg: #ffffff;
+    --muted: #888888;
+
+    /* Semantic Backgrounds */
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #141414;
+    --bg-tertiary: #1a1a1a;
+    --bg-hover: #252525;
+    --bg-active: #2a2a2a;
+
+    /* Semantic Foregrounds */
+    --fg-primary: #ffffff;
+    --fg-secondary: #e5e7eb;
+    --fg-tertiary: #9ca3af;
+    --fg-muted: #6b7280;
+
+    /* Border Colors */
+    --border-default: #1f1f1f;
+    --border-hover: #2a2a2a;
+    --border-focus: #3b82f6;
+
+    /* Status Colors - Adjusted for dark mode */
+    --status-success-bg: #064e3b;
+    --status-warning-bg: #78350f;
+    --status-error-bg: #7f1d1d;
+    --status-info-bg: #1e3a8a;
+
+    /* Shadows - Enhanced for dark mode */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.6);
+}
+
+/* ============================================
+   SCROLLBAR STYLES
+   ============================================ */
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-hover);
+    border-radius: 0.5rem;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--fg-muted);
+}
+
+/* ============================================
+   MOBILE OPTIMIZATIONS
+   ============================================ */
+
 @media (max-width: 768px) {
-    * { -webkit-tap-highlight-color: transparent; }
-    input, select, textarea { font-size: 16px !important; } /* Prevent zoom on iOS */
-    button { min-height: 44px; min-width: 44px; } /* iOS touch target */
+    * {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Prevent iOS zoom on input focus */
+    input, select, textarea {
+        font-size: 16px !important;
+    }
+
+    /* iOS touch target size */
+    button, a, [role="button"] {
+        min-height: 44px;
+        min-width: 44px;
+    }
 }
+
+
+
+/*@import "tailwindcss";*/
+
+/*:root {*/
+/*    --bg: #0a0a0a;*/
+/*    --card: #141414;*/
+/*    --border: #1f1f1f;*/
+/*    --fg: #ffffff;*/
+/*    --muted: #888888;*/
+/*}*/
+
+/*:root.light {*/
+/*    --bg: #ffffff;*/
+/*    --card: #f8f9fa;*/
+/*    --border: #e5e7eb;*/
+/*    --fg: #0a0a0a;*/
+/*    --muted: #6b7280;*/
+/*}*/
+
+/*.scrollbar-hide::-webkit-scrollbar { display: none; }*/
+/*.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }*/
+
+/*!* Mobile touch improvements *!*/
+/*@media (max-width: 768px) {*/
+/*    * { -webkit-tap-highlight-color: transparent; }*/
+/*    input, select, textarea { font-size: 16px !important; } !* Prevent zoom on iOS *!*/
+/*    button { min-height: 44px; min-width: 44px; } !* iOS touch target *!*/
+/*}*/
