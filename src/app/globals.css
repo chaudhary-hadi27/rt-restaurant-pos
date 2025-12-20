@@ -1,35 +1,27 @@
 @import "tailwindcss";
 
-/* Dark theme (default) */
 :root {
     --bg: #0a0a0a;
     --card: #141414;
     --border: #1f1f1f;
     --fg: #ffffff;
     --muted: #888888;
-    --blue: #3b82f6;
-    --blue-hover: #2563eb;
-    --blue-bg: rgba(59, 130, 246, 0.1);
 }
 
-/* Light theme */
 :root.light {
     --bg: #ffffff;
     --card: #f8f9fa;
     --border: #e5e7eb;
     --fg: #0a0a0a;
     --muted: #6b7280;
-    --blue: #3b82f6;
-    --blue-hover: #2563eb;
-    --blue-bg: rgba(59, 130, 246, 0.1);
 }
 
-/* Scrollbar hide utility */
-.scrollbar-hide::-webkit-scrollbar {
-    display: none;
-}
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
-.scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+/* Mobile touch improvements */
+@media (max-width: 768px) {
+    * { -webkit-tap-highlight-color: transparent; }
+    input, select, textarea { font-size: 16px !important; } /* Prevent zoom on iOS */
+    button { min-height: 44px; min-width: 44px; } /* iOS touch target */
 }

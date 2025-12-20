@@ -1,7 +1,6 @@
-// src/app/admin/(pages)/inventory/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, AlertCircle, TrendingDown, Package, TrendingUp } from 'lucide-react'
 import AutoSidebar, { useSidebarItems } from '@/components/layout/AutoSidebar'
@@ -25,16 +24,14 @@ export default function InventoryPage() {
     const supabase = createClient()
     const toast = useToast()
 
-    useState(() => {
+    useEffect(() => {
         loadData()
-
         const channel = supabase
             .channel('inventory_changes')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_items' }, loadData)
             .subscribe()
-
         return () => { supabase.removeChannel(channel) }
-    })
+    }, [])
 
     const loadData = async () => {
         setLoading(true)
@@ -55,7 +52,6 @@ export default function InventoryPage() {
             setItems(enrichedItems)
             setCategories(categoriesRes.data || [])
         } catch (error) {
-            console.error('Load error:', error)
             toast.add('error', 'Failed to load inventory')
         } finally {
             setLoading(false)
@@ -75,11 +71,12 @@ export default function InventoryPage() {
         return getStockStatus(i) === stockFilter
     })
 
+    // ✅ FIX: Convert Lucide icons to JSX elements
     const stats = [
-        { label: 'Critical', value: items.filter(i => getStockStatus(i) === 'critical').length, icon: AlertCircle, color: '#ef4444', onClick: () => setStockFilter('critical'), active: stockFilter === 'critical', subtext: 'Below 50%' },
-        { label: 'Low Stock', value: items.filter(i => getStockStatus(i) === 'low').length, icon: TrendingDown, color: '#f59e0b', onClick: () => setStockFilter('low'), active: stockFilter === 'low', subtext: '50-100%' },
-        { label: 'Medium', value: items.filter(i => getStockStatus(i) === 'medium').length, icon: Package, color: '#3b82f6', onClick: () => setStockFilter('medium'), active: stockFilter === 'medium', subtext: '100-200%' },
-        { label: 'High Stock', value: items.filter(i => getStockStatus(i) === 'high').length, icon: TrendingUp, color: '#10b981', onClick: () => setStockFilter('high'), active: stockFilter === 'high', subtext: 'Above 200%' }
+        { label: 'Critical', value: items.filter(i => getStockStatus(i) === 'critical').length, icon: <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: '#ef4444' }} />, color: '#ef4444', onClick: () => setStockFilter('critical'), active: stockFilter === 'critical', subtext: 'Below 50%' },
+        { label: 'Low Stock', value: items.filter(i => getStockStatus(i) === 'low').length, icon: <TrendingDown className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: '#f59e0b' }} />, color: '#f59e0b', onClick: () => setStockFilter('low'), active: stockFilter === 'low', subtext: '50-100%' },
+        { label: 'Medium', value: items.filter(i => getStockStatus(i) === 'medium').length, icon: <Package className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: '#3b82f6' }} />, color: '#3b82f6', onClick: () => setStockFilter('medium'), active: stockFilter === 'medium', subtext: '100-200%' },
+        { label: 'High Stock', value: items.filter(i => getStockStatus(i) === 'high').length, icon: <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: '#10b981' }} />, color: '#10b981', onClick: () => setStockFilter('high'), active: stockFilter === 'high', subtext: 'Above 200%' }
     ]
 
     const sidebarItems = useSidebarItems([
@@ -96,7 +93,7 @@ export default function InventoryPage() {
             label: 'Item',
             render: (row: InventoryItemWithCategory) => (
                 <div>
-                    <p className="font-medium text-[var(--fg)]">{row.name}</p>
+                    <p className="font-medium text-[var(--fg)] text-sm">{row.name}</p>
                     {row.supplier_name && <p className="text-xs text-[var(--muted)]">{row.supplier_name}</p>}
                 </div>
             )
@@ -130,9 +127,9 @@ export default function InventoryPage() {
         },
         {
             key: 'value',
-            label: 'Total Value',
+            label: 'Value',
             align: 'right' as const,
-            render: (row: InventoryItemWithCategory) => <span className="font-bold text-[var(--fg)]">PKR {(row.total_value || 0).toLocaleString()}</span>
+            render: (row: InventoryItemWithCategory) => <span className="font-bold text-sm sm:text-base text-[var(--fg)]">PKR {(row.total_value || 0).toLocaleString()}</span>
         }
     ]
 
@@ -143,14 +140,14 @@ export default function InventoryPage() {
             <div className="space-y-2">
                 <div className="flex justify-between items-start">
                     <div>
-                        <p className="font-semibold text-[var(--fg)]">{row.name}</p>
+                        <p className="font-semibold text-[var(--fg)] text-sm">{row.name}</p>
                         <p className="text-xs text-[var(--muted)]">{row.inventory_categories?.name || 'Uncategorized'}</p>
                     </div>
                     <span className="px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: `${colors[status]}20`, color: colors[status] }}>
                         {row.quantity} {row.unit}
                     </span>
                 </div>
-                <p className="text-lg font-bold">PKR {(row.total_value || 0).toLocaleString()}</p>
+                <p className="text-base font-bold">PKR {(row.total_value || 0).toLocaleString()}</p>
             </div>
         )
     }
@@ -201,7 +198,6 @@ export default function InventoryPage() {
             setModal(null)
             loadData()
         } catch (error: any) {
-            console.error('Save error:', error)
             toast.add('error', `❌ ${error.message || 'Failed to save'}`)
         }
     }
@@ -212,34 +208,22 @@ export default function InventoryPage() {
 
             <div className="min-h-screen bg-[var(--bg)] lg:ml-64">
                 <header className="sticky top-0 z-20 bg-[var(--card)] border-b border-[var(--border)]">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                        <div className="flex items-center justify-between gap-4">
+                    <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
+                        <div className="flex items-center justify-between gap-3">
                             <div className="min-w-0 flex-1">
-                                <h1 className="text-xl sm:text-2xl font-bold text-[var(--fg)] truncate">Inventory</h1>
-                                <p className="text-xs sm:text-sm text-[var(--muted)] mt-1">
-                                    {filtered.length} items • Total: PKR {items.reduce((s, i) => s + (i.total_value || 0), 0).toLocaleString()}
-                                </p>
+                                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--fg)] truncate">Inventory</h1>
+                                <p className="text-xs sm:text-sm text-[var(--muted)] mt-0.5">{filtered.length} items • PKR {items.reduce((s, i) => s + (i.total_value || 0), 0).toLocaleString()}</p>
                             </div>
-                            <button onClick={() => openModal()} className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 flex-shrink-0">
+                            <button onClick={() => openModal()} className="px-3 py-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 flex-shrink-0 text-sm active:scale-95">
                                 <Plus className="w-4 h-4" />
                                 <span className="hidden sm:inline">Add</span>
                             </button>
                         </div>
                     </div>
                 </header>
-
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+                <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
                     <ResponsiveStatsGrid stats={stats} />
-
-                    <UniversalDataTable
-                        columns={columns}
-                        data={filtered}
-                        loading={loading}
-                        searchable
-                        searchPlaceholder="Search inventory..."
-                        onRowClick={openModal}
-                        renderMobileCard={renderMobileCard}
-                    />
+                    <UniversalDataTable columns={columns} data={filtered} loading={loading} searchable searchPlaceholder="Search inventory..." onRowClick={openModal} renderMobileCard={renderMobileCard} />
                 </div>
             </div>
 
@@ -249,10 +233,10 @@ export default function InventoryPage() {
                     <ResponsiveInput label="Category" type="select" value={form.category_id} onChange={e => setForm({ ...form, category_id: e.target.value })} options={categories.map(c => ({ label: `${c.icon} ${c.name}`, value: c.id }))} />
                     <ResponsiveInput label="Quantity" type="number" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} required />
                     <ResponsiveInput label="Unit" type="select" value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} options={['kg', 'gram', 'liter', 'ml', 'pieces', 'dozen'].map(u => ({ label: u, value: u }))} />
-                    <ResponsiveInput label="Purchase Price (PKR)" type="number" value={form.purchase_price} onChange={e => setForm({ ...form, purchase_price: e.target.value })} required />
+                    <ResponsiveInput label="Price (PKR)" type="number" value={form.purchase_price} onChange={e => setForm({ ...form, purchase_price: e.target.value })} required />
                     <ResponsiveInput label="Reorder Level" type="number" value={form.reorder_level} onChange={e => setForm({ ...form, reorder_level: e.target.value })} />
                 </FormGrid>
-                <ResponsiveInput label="Supplier Name" value={form.supplier_name} onChange={e => setForm({ ...form, supplier_name: e.target.value })} className="mt-4" />
+                <ResponsiveInput label="Supplier" value={form.supplier_name} onChange={e => setForm({ ...form, supplier_name: e.target.value })} className="mt-4" />
             </FormModal>
         </>
     )

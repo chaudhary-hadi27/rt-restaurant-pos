@@ -1,4 +1,3 @@
-// src/lib/hooks/useAdminAuth.ts
 "use client"
 
 import { useState, useEffect } from 'react'
@@ -15,7 +14,6 @@ export function useAdminAuth() {
         setIsAuthenticated(auth)
         setLoading(false)
 
-        // Auto-redirect if not authenticated
         if (!auth && !pathname.includes('/login') && !pathname.includes('/forgot-password')) {
             router.push('/admin/login')
         }
@@ -38,7 +36,7 @@ export function useAdminAuth() {
 
             const data = await res.json()
             return { success: false, error: data.error || 'Invalid password' }
-        } catch (error) {
+        } catch {
             return { success: false, error: 'Network error' }
         } finally {
             setLoading(false)

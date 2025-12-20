@@ -1,4 +1,3 @@
-// src/components/features/split-bill/SplitBillModal.tsx
 'use client'
 
 import { useState } from 'react'
@@ -36,7 +35,6 @@ export default function SplitBillModal({ order, onClose }: SplitBillProps) {
             return Array(peopleCount).fill(perPerson)
         }
 
-        // Item-based split
         const splits = Array(peopleCount).fill(0)
         order.order_items.forEach(item => {
             const assignedPerson = selectedItems[item.id]
@@ -47,12 +45,35 @@ export default function SplitBillModal({ order, onClose }: SplitBillProps) {
         return splits
     }
 
+    const handlePrintBills = () => {
+        const splits = calculateSplits()
+        const printContent = splits.map((amount, i) => `
+            <div style="page-break-after: always; padding: 20px; font-family: monospace;">
+                <h2>RT Restaurant - Split Bill ${i + 1}/${peopleCount}</h2>
+                <p>Order #${order.id.slice(0, 8)}</p>
+                <hr/>
+                <h3>Amount Due: PKR ${amount.toFixed(2)}</h3>
+            </div>
+        `).join('')
+
+        const printWindow = window.open('', '_blank')
+        if (printWindow) {
+            printWindow.document.write(`
+                <html>
+                    <head><title>Split Bills</title></head>
+                    <body>${printContent}</body>
+                </html>
+            `)
+            printWindow.document.close()
+            printWindow.print()
+        }
+    }
+
     const splits = calculateSplits()
 
     return (
         <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
             <div className="rounded-xl w-full max-w-2xl border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-                {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: 'var(--border)' }}>
                     <div className="flex items-center gap-3">
                         <Users className="w-6 h-6" style={{ color: '#3b82f6' }} />
@@ -63,9 +84,7 @@ export default function SplitBillModal({ order, onClose }: SplitBillProps) {
                     </button>
                 </div>
 
-                {/* Content */}
                 <div className="p-6 space-y-6">
-                    {/* Split Type */}
                     <div className="flex gap-3">
                         <button
                             onClick={() => setSplitType('equal')}
@@ -84,11 +103,10 @@ export default function SplitBillModal({ order, onClose }: SplitBillProps) {
                         >
                             <div className="text-2xl mb-2">📋</div>
                             <div className="font-semibold" style={{ color: 'var(--fg)' }}>By Items</div>
+
                             <div className="text-sm" style={{ color: 'var(--muted)' }}>Assign items</div>
                         </button>
                     </div>
-
-                    {/* People Count */}
                     {splitType === 'equal' && (
                         <div>
                             <label className="block text-sm font-medium mb-3" style={{ color: 'var(--fg)' }}>
@@ -116,7 +134,6 @@ export default function SplitBillModal({ order, onClose }: SplitBillProps) {
                         </div>
                     )}
 
-                    {/* Item Assignment */}
                     {splitType === 'items' && (
                         <div>
                             <label className="block text-sm font-medium mb-3" style={{ color: 'var(--fg)' }}>
@@ -138,12 +155,12 @@ export default function SplitBillModal({ order, onClose }: SplitBillProps) {
                                 {order.order_items.map(item => (
                                     <div key={item.id} className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg)' }}>
                                         <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium" style={{ color: 'var(--fg)' }}>
-                        {item.quantity}x {item.menu_items.name}
-                      </span>
+                                        <span className="font-medium" style={{ color: 'var(--fg)' }}>
+                                            {item.quantity}x {item.menu_items.name}
+                                        </span>
                                             <span className="font-bold" style={{ color: 'var(--fg)' }}>
-                        PKR {item.total_price}
-                      </span>
+                                            PKR {item.total_price}
+                                        </span>
                                         </div>
                                         <div className="flex gap-2">
                                             {Array.from({ length: peopleCount }, (_, i) => (
@@ -167,7 +184,6 @@ export default function SplitBillModal({ order, onClose }: SplitBillProps) {
                         </div>
                     )}
 
-                    {/* Split Results */}
                     <div className="p-4 rounded-xl" style={{ backgroundColor: 'var(--bg)' }}>
                         <div className="flex items-center gap-2 mb-4">
                             <DollarSign className="w-5 h-5" style={{ color: '#3b82f6' }} />
@@ -186,7 +202,6 @@ export default function SplitBillModal({ order, onClose }: SplitBillProps) {
                     </div>
                 </div>
 
-                {/* Footer */}
                 <div className="flex gap-3 p-6 border-t" style={{ borderColor: 'var(--border)' }}>
                     <button
                         onClick={onClose}
@@ -196,7 +211,7 @@ export default function SplitBillModal({ order, onClose }: SplitBillProps) {
                         Cancel
                     </button>
                     <button
-                        onClick={() => alert('Print receipts for each person')}
+                        onClick={handlePrintBills}
                         className="flex-1 px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2"
                         style={{ backgroundColor: '#3b82f6', color: '#fff' }}
                     >

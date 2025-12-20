@@ -4,10 +4,10 @@ import bcrypt from 'bcryptjs'
 
 export async function POST(request: Request) {
     try {
-        const { password } = await request.json()
+        const { email, password } = await request.json()
 
-        if (!password) {
-            return NextResponse.json({ error: 'Password required' }, { status: 400 })
+        if (!email || !password) {
+            return NextResponse.json({ error: 'Email and password required' }, { status: 400 })
         }
 
         const supabase = await createClient()
@@ -15,14 +15,13 @@ export async function POST(request: Request) {
         const { data: admin, error } = await supabase
             .from('admin_settings')
             .select('password_hash')
-            .limit(1)
-            .maybeSingle()  // ✅ Use maybeSingle()
+            .eq('email', email)
+            .maybeSingle()
 
         if (!admin || error) {
             return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
         }
 
-        // Verify password
         const isValid = await bcrypt.compare(password, admin.password_hash)
 
         if (!isValid) {

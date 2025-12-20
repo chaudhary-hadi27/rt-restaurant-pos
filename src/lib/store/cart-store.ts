@@ -1,4 +1,3 @@
-// src/lib/store/cart-store.ts
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
@@ -16,7 +15,6 @@ type CartStore = {
     waiterId: string
     notes: string
 
-    // Actions
     addItem: (item: Omit<CartItem, 'quantity'>) => void
     updateQuantity: (id: string, quantity: number) => void
     removeItem: (id: string) => void
@@ -25,7 +23,6 @@ type CartStore = {
     setNotes: (notes: string) => void
     clearCart: () => void
 
-    // Computed
     subtotal: () => number
     tax: () => number
     total: () => number
@@ -95,10 +92,7 @@ export const useCart = create<CartStore>()(
             itemCount: () => get().items.length
         }),
         {
-            name: 'restaurant-cart',
-            onRehydrateStorage: () => (state) => {
-                console.log('Cart rehydrated:', state?.items.length || 0, 'items')
-            }
+            name: 'restaurant-cart'
         }
     )
 )
