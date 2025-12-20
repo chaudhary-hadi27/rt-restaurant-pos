@@ -17,7 +17,6 @@ const ACTIONS = [
     { id: 'manage-menu', label: 'Menu', icon: UtensilsCrossed, href: '/admin/menu', category: 'admin', keywords: ['menu'] },
     { id: 'manage-waiters', label: 'Staff', icon: Users, href: '/admin/waiters', category: 'admin', keywords: ['staff', 'waiter'] },
     { id: 'manage-tables-admin', label: 'Tables', icon: LayoutGrid, href: '/admin/tables', category: 'admin', keywords: ['table'] },
-    { id: 'view-reports', label: 'Reports', icon: FileSpreadsheet, href: '/admin/reports', category: 'admin', keywords: ['report', 'sales'] },
     { id: 'manage-shifts', label: 'Shifts', icon: Clock, href: '/admin/shifts', category: 'admin', keywords: ['shift'] },
 
 

@@ -40,10 +40,21 @@ export default function OrdersPage() {
                 .from('orders')
                 .select('*, restaurant_tables(id, table_number), waiters(name), order_items(*, menu_items(name, price))')
                 .order('created_at', { ascending: false })
-            if (error) throw error
+
+            if (error) {
+                console.error('Supabase error details:', {
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint,
+                    code: error.code
+                })
+                throw error
+            }
+
             setOrders(data || [])
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to load orders:', error)
+            toast.add('error', error.message || 'Failed to load orders')
         } finally {
             setLoading(false)
         }

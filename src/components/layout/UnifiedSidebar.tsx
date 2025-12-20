@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { UtensilsCrossed, LayoutGrid, ShoppingBag, Menu, X, Moon, Sun, Shield, Package, Users, ChefHat, Home, FileSpreadsheet, Command, Clock } from 'lucide-react'
+import { UtensilsCrossed, LayoutGrid, ShoppingBag, Menu, X, Moon, Sun, Shield, Package, Users, ChefHat, Home, Command, Clock } from 'lucide-react'
 import { useTheme } from '@/lib/store/theme-store'
 
 const NAV = {
@@ -19,7 +19,6 @@ const NAV = {
         { label: 'Menu', icon: ChefHat, href: '/admin/menu' },
         { label: 'Waiters', icon: Users, href: '/admin/waiters' },
         { label: 'Tables', icon: LayoutGrid, href: '/admin/tables' },
-        { label: 'Reports', icon: FileSpreadsheet, href: '/admin/reports' },
         { label: 'History', icon: Clock, href: '/admin/history' },
     ]
 }
@@ -52,7 +51,7 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
 
                 {/* Logo */}
                 <Link href={isAdmin ? '/admin' : '/'} className="h-16 flex items-center justify-center border-b border-[var(--border)] flex-shrink-0" onClick={() => setOpen(false)}>
-                    <div className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold text-lg hover:bg-blue-700 active:scale-95">R</div>
+                    <div className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold text-lg hover:bg-blue-700 active:scale-95">RT</div>
                 </Link>
 
                 {/* Nav */}
