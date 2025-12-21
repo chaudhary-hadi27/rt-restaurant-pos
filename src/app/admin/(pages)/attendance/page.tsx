@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Calendar, Clock, Download } from 'lucide-react'
+import { Calendar, Timer, Download } from 'lucide-react'
 import { UniversalDataTable } from '@/components/ui/UniversalDataTable'
 import ResponsiveStatsGrid from '@/components/ui/ResponsiveStatsGrid'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -49,9 +49,9 @@ export default function AdminAttendancePage() {
     }, 0)
 
     const stats = [
-        { label: 'Total Shifts', value: shifts.length, icon: <Clock className="w-6 h-6" />, color: '#3b82f6' },
-        { label: 'Active Now', value: shifts.filter(s => !s.clock_out).length, icon: <Clock className="w-6 h-6" />, color: '#10b981' },
-        { label: 'Total Hours', value: `${totalHours.toFixed(1)}h`, icon: <Clock className="w-6 h-6" />, color: '#f59e0b' }
+        { label: 'Total Shifts', value: shifts.length, icon: <Timer className="w-6 h-6" />, color: '#3b82f6' },
+        { label: 'Active Now', value: shifts.filter(s => !s.clock_out).length, icon: <Timer className="w-6 h-6" />, color: '#10b981' },
+        { label: 'Total Hours', value: `${totalHours.toFixed(1)}h`, icon: <Timer className="w-6 h-6" />, color: '#f59e0b' }
     ]
 
     const exportCSV = () => {
@@ -79,7 +79,7 @@ export default function AdminAttendancePage() {
                         </div>
                     )}
                     <div>
-                        <p className="font-medium text-sm">{row.waiters?.name}</p>
+                        <p className="font-medium text-sm text-[var(--fg)]">{row.waiters?.name}</p>
                         <p className="text-xs text-[var(--muted)]">{row.waiters?.phone}</p>
                     </div>
                 </div>
@@ -88,18 +88,31 @@ export default function AdminAttendancePage() {
         {
             key: 'clock_in',
             label: 'Clock In',
-            render: (row: any) => new Date(row.clock_in).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            render: (row: any) => (
+                <span className="text-sm text-[var(--fg)]">
+                    {new Date(row.clock_in).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+            )
         },
         {
             key: 'clock_out',
             label: 'Clock Out',
-            render: (row: any) => row.clock_out ? new Date(row.clock_out).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : <span className="text-green-600 font-medium">🟢 Active</span>
+            render: (row: any) => row.clock_out ? (
+                <span className="text-sm text-[var(--fg)]">
+                    {new Date(row.clock_out).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+            ) : (
+                <span className="text-green-600 font-medium text-sm flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-green-600 animate-pulse" />
+                    Active
+                </span>
+            )
         },
         {
             key: 'duration',
             label: 'Duration',
             align: 'right' as const,
-            render: (row: any) => <span className="font-bold">{calculateDuration(row.clock_in, row.clock_out)}</span>
+            render: (row: any) => <span className="font-bold text-[var(--fg)]">{calculateDuration(row.clock_in, row.clock_out)}</span>
         }
     ]
 
@@ -124,7 +137,7 @@ export default function AdminAttendancePage() {
                                     value={date}
                                     onChange={(e) => setDate(e.target.value)}
                                     max={new Date().toISOString().split('T')[0]}
-                                    className="bg-transparent text-sm outline-none"
+                                    className="bg-transparent text-sm outline-none text-[var(--fg)]"
                                 />
                             </div>
                             <button onClick={exportCSV} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm active:scale-95">
@@ -137,7 +150,12 @@ export default function AdminAttendancePage() {
 
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
                     <ResponsiveStatsGrid stats={stats} />
-                    <UniversalDataTable columns={columns} data={shifts} loading={loading} emptyMessage="No attendance records for this date" />
+                    <UniversalDataTable
+                        columns={columns}
+                        data={shifts}
+                        loading={loading}
+                        emptyMessage="No attendance records for this date"
+                    />
                 </div>
             </div>
         </>

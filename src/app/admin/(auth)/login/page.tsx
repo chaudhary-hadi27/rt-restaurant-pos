@@ -35,20 +35,6 @@ export default function AdminLoginPage() {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-[var(--bg)] p-4 relative">
-            {/* ✅ Theme Toggle Button - Top Right */}
-            {mounted && (
-                <button
-                    onClick={toggleTheme}
-                    className="fixed top-4 right-4 z-50 p-3 rounded-full bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--bg)] transition-all shadow-lg"
-                    aria-label="Toggle theme"
-                >
-                    {theme === 'dark' ? (
-                        <Sun className="w-5 h-5 text-yellow-500" />
-                    ) : (
-                        <Moon className="w-5 h-5 text-blue-600" />
-                    )}
-                </button>
-            )}
 
             <div className="w-full max-w-md">
                 <div className="text-center mb-8">
@@ -109,24 +95,6 @@ export default function AdminLoginPage() {
                         </button>
                     </form>
                 </div>
-
-                {/* Demo Password - Only in Development */}
-                {mounted && process.env.NODE_ENV === 'development' && (
-                    <div className="mt-6 p-4 bg-blue-600/10 border border-blue-600/20 rounded-lg animate-in slide-in-from-bottom-2">
-                        <p className="text-sm text-blue-600 font-medium mb-2">🔑 Demo Password:</p>
-                        <div className="flex items-center gap-2">
-                            <code className="flex-1 text-xs bg-blue-600/20 px-3 py-1.5 rounded text-blue-600 font-mono">
-                                admin123
-                            </code>
-                            <button
-                                onClick={() => setPassword('admin123')}
-                                className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
-                            >
-                                Use
-                            </button>
-                        </div>
-                    </div>
-                )}
 
                 {/* Back to Restaurant */}
                 <div className="mt-6 text-center">

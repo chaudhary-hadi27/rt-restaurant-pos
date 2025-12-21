@@ -1,13 +1,20 @@
 import { createClient } from '@/lib/supabase/client'
 
-type DateRange = 'today' | 'week' | 'month'
+type DateRange = 'today' | 'week' | 'month' | 'year' | 'custom'
 
-export const getDateRange = (range: DateRange) => {
+export const getDateRange = (range: DateRange, customStart?: string, customEnd?: string) => {
     const now = new Date()
     const start = new Date()
+
     if (range === 'today') start.setHours(0, 0, 0, 0)
     else if (range === 'week') start.setDate(now.getDate() - 7)
-    else start.setMonth(now.getMonth() - 1)
+    else if (range === 'month') start.setMonth(now.getMonth() - 1)
+    else if (range === 'year') start.setFullYear(now.getFullYear() - 1) // ✅ NEW
+    else if (range === 'custom' && customStart) return {
+        startDate: customStart,
+        endDate: customEnd || now.toISOString()
+    }
+
     return { startDate: start.toISOString(), endDate: now.toISOString() }
 }
 
