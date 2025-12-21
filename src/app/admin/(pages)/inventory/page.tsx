@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/Toast'
 import { validate } from '@/lib/utils/validation'
 import type { InventoryItemWithCategory, InventoryCategory } from '@/types'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { getStockStatusColor } from '@/lib/utils/statusHelpers'
 
 export default function InventoryPage() {
     const [items, setItems] = useState<InventoryItemWithCategory[]>([])
@@ -77,11 +78,11 @@ export default function InventoryPage() {
     )
 
     const stats = useMemo(() => [
-        { label: 'Critical', value: items.filter(i => getStockStatus(i) === 'critical').length, /* ... */ },
-        { label: 'Low Stock', value: items.filter(i => getStockStatus(i) === 'low').length, /* ... */ },
-        { label: 'Medium', value: items.filter(i => getStockStatus(i) === 'medium').length, /* ... */ },
-        { label: 'High Stock', value: items.filter(i => getStockStatus(i) === 'high').length, /* ... */ }
-    ], [items, getStockStatus])
+        { label: 'Critical', value: items.filter(i => getStockStatus(i) === 'critical').length, color: '#ef4444', onClick: () => setStockFilter('critical'), active: stockFilter === 'critical' },
+        { label: 'Low Stock', value: items.filter(i => getStockStatus(i) === 'low').length, color: '#f59e0b', onClick: () => setStockFilter('low'), active: stockFilter === 'low' },
+        { label: 'Medium', value: items.filter(i => getStockStatus(i) === 'medium').length, color: '#3b82f6', onClick: () => setStockFilter('medium'), active: stockFilter === 'medium' },
+        { label: 'High Stock', value: items.filter(i => getStockStatus(i) === 'high').length, color: '#10b981', onClick: () => setStockFilter('high'), active: stockFilter === 'high' }
+    ], [items, getStockStatus, stockFilter])
 
     const sidebarItems = useSidebarItems([
         { id: 'all', label: 'All Items', icon: '📦', count: items.length },
@@ -117,9 +118,9 @@ export default function InventoryPage() {
             label: 'Stock',
             render: (row: InventoryItemWithCategory) => {
                 const status = getStockStatus(row)
-                const colors = { critical: '#ef4444', low: '#f59e0b', medium: '#3b82f6', high: '#10b981' }
+                const statusColor = getStockStatusColor(status)
                 return (
-                    <span className="inline-flex px-2 py-1 rounded-md text-xs font-medium" style={{ backgroundColor: `${colors[status]}20`, color: colors[status] }}>
+                    <span className="inline-flex px-2 py-1 rounded-md text-xs font-medium" style={{ backgroundColor: `${statusColor}20`, color: statusColor }}>
                         {row.quantity} {row.unit}
                     </span>
                 )
@@ -220,72 +221,72 @@ export default function InventoryPage() {
 
     return (
         <ErrorBoundary>
-        <>
-            <AutoSidebar items={sidebarItems} title="Stock Status" />
+            <>
+                <AutoSidebar items={sidebarItems} title="Stock Status" />
 
-            <div className="min-h-screen bg-[var(--bg)] lg:ml-64">
-                <header className="sticky top-0 z-20 bg-[var(--card)] border-b border-[var(--border)]">
-                    <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
-                        <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--fg)] truncate">Inventory</h1>
-                                <p className="text-xs sm:text-sm text-[var(--muted)] mt-0.5">{filtered.length} items • PKR {items.reduce((s, i) => s + (i.total_value || 0), 0).toLocaleString()}</p>
-                            </div>
-                            <div className="flex gap-2">
-                                <button onClick={() => setCategoryModal(true)} className="px-3 py-2 sm:px-4 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 flex-shrink-0 text-sm active:scale-95">
-                                    <FolderPlus className="w-4 h-4" />
-                                    <span className="hidden sm:inline">Category</span>
-                                </button>
-                                <button onClick={() => openModal()} className="px-3 py-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 flex-shrink-0 text-sm active:scale-95">
-                                    <Plus className="w-4 h-4" />
-                                    <span className="hidden sm:inline">Add</span>
-                                </button>
+                <div className="min-h-screen bg-[var(--bg)] lg:ml-64">
+                    <header className="sticky top-0 z-20 bg-[var(--card)] border-b border-[var(--border)]">
+                        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0 flex-1">
+                                    <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-[var(--fg)] truncate">Inventory</h1>
+                                    <p className="text-xs sm:text-sm text-[var(--muted)] mt-0.5">{filtered.length} items • PKR {items.reduce((s, i) => s + (i.total_value || 0), 0).toLocaleString()}</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setCategoryModal(true)} className="px-3 py-2 sm:px-4 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 flex-shrink-0 text-sm active:scale-95">
+                                        <FolderPlus className="w-4 h-4" />
+                                        <span className="hidden sm:inline">Category</span>
+                                    </button>
+                                    <button onClick={() => openModal()} className="px-3 py-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 flex-shrink-0 text-sm active:scale-95">
+                                        <Plus className="w-4 h-4" />
+                                        <span className="hidden sm:inline">Add</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </header>
-                <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
-                    <ResponsiveStatsGrid stats={stats} />
-                    <UniversalDataTable columns={columns} data={filtered} loading={loading} searchable searchPlaceholder="Search inventory..." onRowClick={openModal} renderMobileCard={(row) => {
-                        const status = getStockStatus(row)
-                        const colors = { critical: '#ef4444', low: '#f59e0b', medium: '#3b82f6', high: '#10b981' }
-                        return (
-                            <div className="space-y-2">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <p className="font-semibold text-[var(--fg)] text-sm">{row.name}</p>
-                                        <p className="text-xs text-[var(--muted)]">{row.inventory_categories?.name || 'Uncategorized'}</p>
-                                    </div>
-                                    <span className="px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: `${colors[status]}20`, color: colors[status] }}>
+                    </header>
+                    <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+                        <ResponsiveStatsGrid stats={stats} />
+                        <UniversalDataTable columns={columns} data={filtered} loading={loading} searchable searchPlaceholder="Search inventory..." onRowClick={openModal} renderMobileCard={(row) => {
+                            const status = getStockStatus(row)
+                            const statusColor = getStockStatusColor(status)
+                            return (
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-semibold text-[var(--fg)] text-sm">{row.name}</p>
+                                            <p className="text-xs text-[var(--muted)]">{row.inventory_categories?.name || 'Uncategorized'}</p>
+                                        </div>
+                                        <span className="px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: `${statusColor}20`, color: statusColor }}>
                                         {row.quantity} {row.unit}
                                     </span>
+                                    </div>
+                                    <p className="text-base font-bold">PKR {(row.total_value || 0).toLocaleString()}</p>
                                 </div>
-                                <p className="text-base font-bold">PKR {(row.total_value || 0).toLocaleString()}</p>
-                            </div>
-                        )
-                    }} />
+                            )
+                        }} />
+                    </div>
                 </div>
-            </div>
 
-            {/* Add/Edit Item Modal */}
-            <FormModal open={!!modal} onClose={() => setModal(null)} title={modal?.id ? 'Edit Item' : 'Add Item'} onSubmit={save}>
-                <FormGrid>
-                    <ResponsiveInput label="Item Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
-                    <ResponsiveInput label="Category" type="select" value={form.category_id} onChange={e => setForm({ ...form, category_id: e.target.value })} options={categories.map(c => ({ label: `${c.icon} ${c.name}`, value: c.id }))} />
-                    <ResponsiveInput label="Quantity" type="number" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} required />
-                    <ResponsiveInput label="Unit" type="select" value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} options={['kg', 'gram', 'liter', 'ml', 'pieces', 'dozen'].map(u => ({ label: u, value: u }))} />
-                    <ResponsiveInput label="Price (PKR)" type="number" value={form.purchase_price} onChange={e => setForm({ ...form, purchase_price: e.target.value })} required />
-                    <ResponsiveInput label="Reorder Level" type="number" value={form.reorder_level} onChange={e => setForm({ ...form, reorder_level: e.target.value })} />
-                </FormGrid>
-                <ResponsiveInput label="Supplier" value={form.supplier_name} onChange={e => setForm({ ...form, supplier_name: e.target.value })} className="mt-4" />
-            </FormModal>
+                {/* Add/Edit Item Modal */}
+                <FormModal open={!!modal} onClose={() => setModal(null)} title={modal?.id ? 'Edit Item' : 'Add Item'} onSubmit={save}>
+                    <FormGrid>
+                        <ResponsiveInput label="Item Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+                        <ResponsiveInput label="Category" type="select" value={form.category_id} onChange={e => setForm({ ...form, category_id: e.target.value })} options={categories.map(c => ({ label: `${c.icon} ${c.name}`, value: c.id }))} />
+                        <ResponsiveInput label="Quantity" type="number" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} required />
+                        <ResponsiveInput label="Unit" type="select" value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} options={['kg', 'gram', 'liter', 'ml', 'pieces', 'dozen'].map(u => ({ label: u, value: u }))} />
+                        <ResponsiveInput label="Price (PKR)" type="number" value={form.purchase_price} onChange={e => setForm({ ...form, purchase_price: e.target.value })} required />
+                        <ResponsiveInput label="Reorder Level" type="number" value={form.reorder_level} onChange={e => setForm({ ...form, reorder_level: e.target.value })} />
+                    </FormGrid>
+                    <ResponsiveInput label="Supplier" value={form.supplier_name} onChange={e => setForm({ ...form, supplier_name: e.target.value })} className="mt-4" />
+                </FormModal>
 
-            {/* Add Category Modal */}
-            <FormModal open={categoryModal} onClose={() => setCategoryModal(false)} title="Add Category" onSubmit={saveCategory}>
-                <ResponsiveInput label="Category Name" value={categoryForm.name} onChange={e => setCategoryForm({ ...categoryForm, name: e.target.value })} placeholder="e.g., Vegetables, Meat" required />
-                <ResponsiveInput label="Icon (Emoji)" value={categoryForm.icon} onChange={e => setCategoryForm({ ...categoryForm, icon: e.target.value })} placeholder="📦" hint="Use any emoji" className="mt-4" />
-            </FormModal>
-        </>
+                {/* Add Category Modal */}
+                <FormModal open={categoryModal} onClose={() => setCategoryModal(false)} title="Add Category" onSubmit={saveCategory}>
+                    <ResponsiveInput label="Category Name" value={categoryForm.name} onChange={e => setCategoryForm({ ...categoryForm, name: e.target.value })} placeholder="e.g., Vegetables, Meat" required />
+                    <ResponsiveInput label="Icon (Emoji)" value={categoryForm.icon} onChange={e => setCategoryForm({ ...categoryForm, icon: e.target.value })} placeholder="📦" hint="Use any emoji" className="mt-4" />
+                </FormModal>
+            </>
         </ErrorBoundary>
     )
 }

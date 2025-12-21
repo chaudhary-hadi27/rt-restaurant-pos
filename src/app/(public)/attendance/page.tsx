@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Timer, LogIn, LogOut, User } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { getWaiterStatusColor } from '@/lib/utils/statusHelpers'
 
 export default function AttendancePage() {
     const [waiters, setWaiters] = useState<any[]>([])
@@ -66,10 +67,15 @@ export default function AttendancePage() {
                             <div className="min-w-0 flex-1">
                                 <h3 className="font-bold text-[var(--fg)] text-base sm:text-lg truncate">{waiter.name}</h3>
                                 <p className="text-xs sm:text-sm text-[var(--muted)] truncate">{waiter.phone}</p>
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 mt-1 rounded-full text-xs font-medium ${waiter.is_on_duty ? 'bg-green-500/20 text-green-600' : 'bg-gray-500/20 text-gray-600 dark:bg-gray-500/30 dark:text-gray-400'}`}>
-                                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: waiter.is_on_duty ? '#10b981' : '#6b7280' }} />
-                                    {waiter.is_on_duty ? 'On Duty' : 'Off Duty'}
-                                </span>
+                                {(() => {
+                                    const statusColors = getWaiterStatusColor(waiter.is_on_duty)
+                                    return (
+                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 mt-1 rounded-full text-xs font-medium ${statusColors.bgColor} ${statusColors.textColor}`}>
+                                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusColors.dotColor }} />
+                                            {statusColors.label}
+                                        </span>
+                                    )
+                                })()}
                             </div>
                         </div>
 

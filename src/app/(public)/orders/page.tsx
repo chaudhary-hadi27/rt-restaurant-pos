@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react' // Add useMemo
 import { createClient } from '@/lib/supabase/client'
-import { Clock, CheckCircle, Printer, Users, RefreshCw, DollarSign } from 'lucide-react'
+import { Printer, Users, RefreshCw, DollarSign } from 'lucide-react'
 import { UniversalDataTable } from '@/components/ui/UniversalDataTable'
 import ResponsiveStatsGrid from '@/components/ui/ResponsiveStatsGrid'
 import AutoSidebar, { useSidebarItems } from '@/components/layout/AutoSidebar'
@@ -14,6 +14,7 @@ import { useToast } from '@/components/ui/Toast'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { logger } from '@/lib/utils/logger'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { getOrderStatusColor } from '@/lib/utils/statusHelpers'
 
 export default function OrdersPage() {
     const [orders, setOrders] = useState<any[]>([])
@@ -148,11 +149,7 @@ export default function OrdersPage() {
             key: 'status',
             label: 'Status',
             render: (row: any) => {
-                const colors = {
-                    pending: { bg: 'bg-yellow-500/20', text: 'text-yellow-600', label: '🔄 Active' },
-                    completed: { bg: 'bg-green-500/20', text: 'text-green-600', label: '✅ Done' }
-                }
-                const status = colors[row.status as keyof typeof colors] || colors.pending
+                const status = getOrderStatusColor(row.status)
                 return <span className={`inline-flex px-2 py-1 rounded-md text-xs font-semibold ${status.bg} ${status.text}`}>{status.label}</span>
             }
         },

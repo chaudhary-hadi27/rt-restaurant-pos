@@ -11,6 +11,7 @@ import { RefreshCw, DollarSign } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import type { TableWithRelations } from '@/types'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { getTableStatusColor } from '@/lib/utils/statusHelpers'
 
 export default function TablesPage() {
     const [tables, setTables] = useState<TableWithRelations[]>([])
@@ -61,10 +62,6 @@ export default function TablesPage() {
         [enrichedTables, statusFilter]
     )
 
-    const getStatusColor = (status: string) => ({
-        available: '#10b981', occupied: '#ef4444', reserved: '#f59e0b', cleaning: '#3b82f6'
-    }[status] || '#6b7280')
-
     const stats = useMemo(() => [
         { label: 'Total', value: tables.length, color: '#3b82f6', onClick: () => setStatusFilter('all'), active: statusFilter === 'all' },
         { label: 'Available', value: tables.filter(t => t.status === 'available').length, color: '#10b981', onClick: () => setStatusFilter('available'), active: statusFilter === 'available' },
@@ -85,7 +82,7 @@ export default function TablesPage() {
             label: 'Table',
             render: (row: TableWithRelations) => (
                 <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center text-white font-bold shadow-sm text-sm sm:text-base" style={{ backgroundColor: getStatusColor(row.status) }}>
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center text-white font-bold shadow-sm text-sm sm:text-base" style={{ backgroundColor: getTableStatusColor(row.status) }}>
                         {row.table_number}
                     </div>
                     <div>
@@ -100,7 +97,7 @@ export default function TablesPage() {
             label: 'Status',
             render: (row: TableWithRelations) => (
                 <div>
-                    <span className="inline-flex px-2 py-1 rounded-md text-xs font-semibold capitalize" style={{ backgroundColor: `${getStatusColor(row.status)}15`, color: getStatusColor(row.status) }}>
+                    <span className="inline-flex px-2 py-1 rounded-md text-xs font-semibold capitalize" style={{ backgroundColor: `${getTableStatusColor(row.status)}15`, color: getTableStatusColor(row.status) }}>
                         {row.status}
                     </span>
                     {row.order && <p className="text-xs text-[var(--muted)] mt-1">🔄 Running</p>}
@@ -140,13 +137,13 @@ export default function TablesPage() {
         <div className="space-y-2">
             <div className="flex justify-between items-start">
                 <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: getStatusColor(row.status) }}>{row.table_number}</div>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: getTableStatusColor(row.status) }}>{row.table_number}</div>
                     <div>
                         <p className="font-semibold text-[var(--fg)] text-sm">Table {row.table_number}</p>
                         <p className="text-xs text-[var(--muted)]">{row.section}</p>
                     </div>
                 </div>
-                <span className="px-2 py-1 rounded text-xs font-semibold capitalize" style={{ backgroundColor: `${getStatusColor(row.status)}15`, color: getStatusColor(row.status) }}>{row.status}</span>
+                <span className="px-2 py-1 rounded text-xs font-semibold capitalize" style={{ backgroundColor: `${getTableStatusColor(row.status)}15`, color: getTableStatusColor(row.status) }}>{row.status}</span>
             </div>
             {row.waiter && row.status !== 'available' && <p className="text-xs text-[var(--muted)]">👤 {row.waiter.name}</p>}
             {row.order && <p className="text-base font-bold text-[var(--fg)]">PKR {row.order.total_amount.toLocaleString()}</p>}
@@ -155,42 +152,42 @@ export default function TablesPage() {
 
     return (
         <ErrorBoundary>
-        <div className="min-h-screen bg-[var(--bg)]">
-            <AutoSidebar items={sidebarItems} title="Status" />
+            <div className="min-h-screen bg-[var(--bg)]">
+                <AutoSidebar items={sidebarItems} title="Status" />
 
-            <div className="lg:ml-64">
-                <PageHeader title="Tables" subtitle="Restaurant tables & running bills"
-                            action={
-                                <button onClick={loadData} className="p-2 hover:bg-[var(--bg)] rounded-lg active:scale-95">
-                                    <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted)]" />
-                                </button>
-                            } />
+                <div className="lg:ml-64">
+                    <PageHeader title="Tables" subtitle="Restaurant tables & running bills"
+                                action={
+                                    <button onClick={loadData} className="p-2 hover:bg-[var(--bg)] rounded-lg active:scale-95">
+                                        <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted)]" />
+                                    </button>
+                                } />
 
-                <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
-                    <ResponsiveStatsGrid stats={stats} />
-                    <UniversalDataTable columns={columns} data={filtered} loading={loading} searchable searchPlaceholder="Search tables..." onRowClick={setSelectedTable} renderMobileCard={renderMobileCard} />
+                    <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+                        <ResponsiveStatsGrid stats={stats} />
+                        <UniversalDataTable columns={columns} data={filtered} loading={loading} searchable searchPlaceholder="Search tables..." onRowClick={setSelectedTable} renderMobileCard={renderMobileCard} />
+                    </div>
                 </div>
-            </div>
 
-            {selectedTable?.order && (
-                <UniversalModal open={!!selectedTable} onClose={() => setSelectedTable(null)} title={`Table ${selectedTable.table_number} - Running Bill`} subtitle={`Order #${selectedTable.order.id.slice(0, 8)} • ${selectedTable.waiter?.name || 'N/A'}`} icon={<DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />}>
-                    <div className="space-y-3 sm:space-y-4">
-                        {selectedTable.order.order_items?.map((item: any, idx: number) => (
-                            <div key={idx} className="flex justify-between p-2.5 sm:p-3 bg-[var(--bg)] rounded-lg">
-                                <span className="font-medium text-sm">{item.quantity}× {item.menu_items.name}</span>
-                                <span className="font-bold text-sm">PKR {item.total_price}</span>
-                            </div>
-                        ))}
-                        <div className="p-3 sm:p-4 bg-blue-600/10 rounded-lg border border-blue-600/30">
-                            <div className="flex justify-between text-lg sm:text-2xl font-bold">
-                                <span>Total</span>
-                                <span className="text-blue-600">PKR {selectedTable.order.total_amount.toLocaleString()}</span>
+                {selectedTable?.order && (
+                    <UniversalModal open={!!selectedTable} onClose={() => setSelectedTable(null)} title={`Table ${selectedTable.table_number} - Running Bill`} subtitle={`Order #${selectedTable.order.id.slice(0, 8)} • ${selectedTable.waiter?.name || 'N/A'}`} icon={<DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />}>
+                        <div className="space-y-3 sm:space-y-4">
+                            {selectedTable.order.order_items?.map((item: any, idx: number) => (
+                                <div key={idx} className="flex justify-between p-2.5 sm:p-3 bg-[var(--bg)] rounded-lg">
+                                    <span className="font-medium text-sm">{item.quantity}× {item.menu_items.name}</span>
+                                    <span className="font-bold text-sm">PKR {item.total_price}</span>
+                                </div>
+                            ))}
+                            <div className="p-3 sm:p-4 bg-blue-600/10 rounded-lg border border-blue-600/30">
+                                <div className="flex justify-between text-lg sm:text-2xl font-bold">
+                                    <span>Total</span>
+                                    <span className="text-blue-600">PKR {selectedTable.order.total_amount.toLocaleString()}</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </UniversalModal>
-            )}
-        </div>
+                    </UniversalModal>
+                )}
+            </div>
         </ErrorBoundary>
     )
 }
