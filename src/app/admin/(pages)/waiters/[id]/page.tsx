@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, DollarSign, ShoppingBag, Clock, TrendingUp, Calendar } from 'lucide-react'
+import {ErrorBoundary} from "@/components/ErrorBoundary";
 
 export default function WaiterStatsPage() {
     const params = useParams()
@@ -106,6 +107,7 @@ export default function WaiterStatsPage() {
     const performance = getPerformanceLevel()
 
     return (
+        <ErrorBoundary>
         <div className="min-h-screen bg-[var(--bg)]">
             {/* Header */}
             <header className="sticky top-0 z-30 bg-[var(--card)] border-b border-[var(--border)]">
@@ -302,5 +304,6 @@ export default function WaiterStatsPage() {
                 </div>
             </div>
         </div>
+        </ErrorBoundary>
     )
 }

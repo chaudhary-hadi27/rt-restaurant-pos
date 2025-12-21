@@ -7,6 +7,7 @@ import AutoSidebar, { useSidebarItems } from '@/components/layout/AutoSidebar'
 import { FormModal } from '@/components/ui/UniversalModal'
 import ResponsiveInput, { FormGrid } from '@/components/ui/ResponsiveInput'
 import { useToast } from '@/components/ui/Toast'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 export default function MenuPage() {
     const [items, setItems] = useState<any[]>([])
@@ -98,6 +99,7 @@ export default function MenuPage() {
     ], selectedCategory, setSelectedCategory)
 
     return (
+        <ErrorBoundary>
         <>
             <AutoSidebar items={sidebarItems} title="Menu Categories" />
 
@@ -225,5 +227,6 @@ export default function MenuPage() {
                 </div>
             </FormModal>
         </>
+        </ErrorBoundary>
     )
 }

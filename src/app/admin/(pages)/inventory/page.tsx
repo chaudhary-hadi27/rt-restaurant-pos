@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, AlertCircle, TrendingDown, Package, TrendingUp, FolderPlus } from 'lucide-react'
 import AutoSidebar, { useSidebarItems } from '@/components/layout/AutoSidebar'
@@ -9,7 +9,9 @@ import { UniversalDataTable } from '@/components/ui/UniversalDataTable'
 import { FormModal } from '@/components/ui/UniversalModal'
 import ResponsiveInput, { FormGrid } from '@/components/ui/ResponsiveInput'
 import { useToast } from '@/components/ui/Toast'
+import { validate } from '@/lib/utils/validation'
 import type { InventoryItemWithCategory, InventoryCategory } from '@/types'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 export default function InventoryPage() {
     const [items, setItems] = useState<InventoryItemWithCategory[]>([])
@@ -61,25 +63,25 @@ export default function InventoryPage() {
         }
     }
 
-    const getStockStatus = (item: InventoryItemWithCategory) => {
+    const getStockStatus = useMemo(() => (item: InventoryItemWithCategory) => {
         const percentage = (item.quantity / item.reorder_level) * 100
         if (percentage <= 50) return 'critical'
         if (percentage <= 100) return 'low'
         if (percentage <= 200) return 'medium'
         return 'high'
-    }
+    }, [])
 
-    const filtered = items.filter(i => {
-        if (stockFilter === 'all') return true
-        return getStockStatus(i) === stockFilter
-    })
+    const filtered = useMemo(
+        () => items.filter(i => stockFilter === 'all' || getStockStatus(i) === stockFilter),
+        [items, stockFilter, getStockStatus]
+    )
 
-    const stats = [
-        { label: 'Critical', value: items.filter(i => getStockStatus(i) === 'critical').length, icon: <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: '#ef4444' }} />, color: '#ef4444', onClick: () => setStockFilter('critical'), active: stockFilter === 'critical', subtext: 'Below 50%' },
-        { label: 'Low Stock', value: items.filter(i => getStockStatus(i) === 'low').length, icon: <TrendingDown className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: '#f59e0b' }} />, color: '#f59e0b', onClick: () => setStockFilter('low'), active: stockFilter === 'low', subtext: '50-100%' },
-        { label: 'Medium', value: items.filter(i => getStockStatus(i) === 'medium').length, icon: <Package className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: '#3b82f6' }} />, color: '#3b82f6', onClick: () => setStockFilter('medium'), active: stockFilter === 'medium', subtext: '100-200%' },
-        { label: 'High Stock', value: items.filter(i => getStockStatus(i) === 'high').length, icon: <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: '#10b981' }} />, color: '#10b981', onClick: () => setStockFilter('high'), active: stockFilter === 'high', subtext: 'Above 200%' }
-    ]
+    const stats = useMemo(() => [
+        { label: 'Critical', value: items.filter(i => getStockStatus(i) === 'critical').length, /* ... */ },
+        { label: 'Low Stock', value: items.filter(i => getStockStatus(i) === 'low').length, /* ... */ },
+        { label: 'Medium', value: items.filter(i => getStockStatus(i) === 'medium').length, /* ... */ },
+        { label: 'High Stock', value: items.filter(i => getStockStatus(i) === 'high').length, /* ... */ }
+    ], [items, getStockStatus])
 
     const sidebarItems = useSidebarItems([
         { id: 'all', label: 'All Items', icon: '📦', count: items.length },
@@ -155,8 +157,14 @@ export default function InventoryPage() {
     }
 
     const save = async () => {
-        if (!form.name || !form.quantity || !form.purchase_price) {
-            return toast.add('error', 'Fill required fields')
+        const errors = {
+            name: validate.name(form.name),
+            quantity: validate.price(form.quantity),
+            price: validate.price(form.purchase_price)
+        }
+
+        if (errors.name || errors.quantity || errors.price) {
+            return toast.add('error', Object.values(errors).find(e => e) || 'Invalid')
         }
 
         const data = {
@@ -211,6 +219,7 @@ export default function InventoryPage() {
     }
 
     return (
+        <ErrorBoundary>
         <>
             <AutoSidebar items={sidebarItems} title="Stock Status" />
 
@@ -277,5 +286,6 @@ export default function InventoryPage() {
                 <ResponsiveInput label="Icon (Emoji)" value={categoryForm.icon} onChange={e => setCategoryForm({ ...categoryForm, icon: e.target.value })} placeholder="📦" hint="Use any emoji" className="mt-4" />
             </FormModal>
         </>
+        </ErrorBoundary>
     )
 }

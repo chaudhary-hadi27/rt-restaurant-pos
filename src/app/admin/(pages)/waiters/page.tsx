@@ -11,6 +11,9 @@ import { FormModal } from '@/components/ui/UniversalModal'
 import ResponsiveInput, { FormGrid } from '@/components/ui/ResponsiveInput'
 import { useToast } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
+import { validate } from '@/lib/utils/validation'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+
 
 const EMPLOYEE_TYPES = [
     { label: '🍽️ Waiter', value: 'waiter' },
@@ -107,8 +110,14 @@ export default function WaitersPage() {
     }
 
     const save = async () => {
-        if (!form.name || !form.phone) return toast.add('error', 'Name and phone required')
-        setSaving(true)
+        const errors = {
+            name: validate.name(form.name),
+            phone: validate.phone(form.phone)
+        }
+
+        if (errors.name || errors.phone) {
+            return toast.add('error', errors.name || errors.phone || 'Invalid input')
+        }
         try {
             const data = {
                 name: form.name,
@@ -129,7 +138,14 @@ export default function WaitersPage() {
         } catch (error: any) {
             toast.add('error', `❌ ${error.message || 'Failed'}`)
         } finally {
-            setSaving(false)
+            setSaving(true)
+            try {
+                // existing save code...
+            } catch (error: any) {
+                toast.add('error', `❌ ${error.message || 'Failed'}`)
+            } finally {
+                setSaving(false) // ✅ Ensure this is always called
+            }
         }
     }
 
@@ -150,6 +166,7 @@ export default function WaitersPage() {
     }
 
     return (
+        <ErrorBoundary>
         <>
             <AutoSidebar items={useSidebarItems([
                 { id: 'all', label: 'All Staff', icon: '👥', count: waiters.length },
@@ -246,5 +263,6 @@ export default function WaitersPage() {
                 )}
             </FormModal>
         </>
+        </ErrorBoundary>
     )
 }

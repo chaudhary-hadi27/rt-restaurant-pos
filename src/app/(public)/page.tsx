@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useSupabase } from '@/lib/hooks/useSupabase'
 import { useCart } from '@/lib/store/cart-store'
 import { useHydration } from '@/lib/hooks/useHydration'
@@ -19,7 +19,10 @@ export default function MenuPage() {
     const [selectedCat, setSelectedCat] = useState('all')
     const [cartOpen, setCartOpen] = useState(false)
 
-    const filtered = items.filter(i => selectedCat === 'all' || i.category_id === selectedCat)
+    const filtered = useMemo(
+        () => items.filter(i => selectedCat === 'all' || i.category_id === selectedCat),
+        [items, selectedCat]
+    )
 
     const sidebarItems = useSidebarItems([
         { id: 'all', label: 'All Items', icon: '📋', count: items.length },

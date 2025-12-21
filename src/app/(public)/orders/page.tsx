@@ -1,16 +1,19 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react' // Add useMemo
 import { createClient } from '@/lib/supabase/client'
-import { Clock, CheckCircle, Printer, Users, RefreshCw } from 'lucide-react'
+import { Clock, CheckCircle, Printer, Users, RefreshCw, DollarSign } from 'lucide-react'
 import { UniversalDataTable } from '@/components/ui/UniversalDataTable'
 import ResponsiveStatsGrid from '@/components/ui/ResponsiveStatsGrid'
 import AutoSidebar, { useSidebarItems } from '@/components/layout/AutoSidebar'
 import UniversalModal from '@/components/ui/UniversalModal'
 import ReceiptModal from '@/components/features/receipt/ReceiptGenerator'
 import SplitBillModal from '@/components/features/split-bill/SplitBillModal'
+import PaymentModal from '@/components/features/payment/PaymentModal'
 import { useToast } from '@/components/ui/Toast'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { logger } from '@/lib/utils/logger'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 export default function OrdersPage() {
     const [orders, setOrders] = useState<any[]>([])
@@ -18,8 +21,10 @@ export default function OrdersPage() {
     const [loading, setLoading] = useState(true)
     const [showReceipt, setShowReceipt] = useState<any>(null)
     const [showSplitBill, setShowSplitBill] = useState<any>(null)
+    const [showPayment, setShowPayment] = useState<any>(null)
     const [selectedOrder, setSelectedOrder] = useState<any>(null)
     const [closingOrder, setClosingOrder] = useState<string | null>(null)
+    const [cancelling, setCancelling] = useState<string | null>(null)
     const supabase = createClient()
     const toast = useToast()
 
@@ -42,19 +47,15 @@ export default function OrdersPage() {
                 .order('created_at', { ascending: false })
 
             if (error) {
-                console.error('Supabase error details:', {
-                    message: error.message,
-                    details: error.details,
-                    hint: error.hint,
-                    code: error.code
-                })
+                logger.error('Failed to load orders', { error, details: error.details })
                 throw error
             }
 
             setOrders(data || [])
         } catch (error: any) {
-            console.error('Failed to load orders:', error)
+            logger.error('Order operation failed', error)
             toast.add('error', error.message || 'Failed to load orders')
+
         } finally {
             setLoading(false)
         }
@@ -79,13 +80,40 @@ export default function OrdersPage() {
         setClosingOrder(null)
     }
 
-    const filtered = orders.filter(o => filter === 'all' || (filter === 'active' ? o.status === 'pending' : o.status === 'completed'))
+    const cancelOrder = async (order: any) => {
+        if (!confirm('Cancel this order? This cannot be undone.')) return
+        setCancelling(order.id)
+        try {
+            await supabase.from('orders').update({ status: 'cancelled' }).eq('id', order.id)
 
-    const stats = [
+            // Free table if occupied
+            if (order.restaurant_tables?.id) {
+                await supabase.from('restaurant_tables').update({
+                    status: 'available',
+                    current_order_id: null,
+                    waiter_id: null
+                }).eq('id', order.restaurant_tables.id)
+            }
+
+            toast.add('success', '✅ Order cancelled')
+            setSelectedOrder(null)
+            load()
+        } catch (error) {
+            toast.add('error', '❌ Failed to cancel')
+        }
+        setCancelling(null)
+    }
+
+    const filtered = useMemo(
+        () => orders.filter(o => filter === 'all' || (filter === 'active' ? o.status === 'pending' : o.status === 'completed')),
+        [orders, filter]
+    )
+
+    const stats = useMemo(() => [
         { label: 'Active', value: orders.filter(o => o.status === 'pending').length, color: '#f59e0b', onClick: () => setFilter('active'), active: filter === 'active' },
         { label: 'Completed', value: orders.filter(o => o.status === 'completed').length, color: '#10b981', onClick: () => setFilter('completed'), active: filter === 'completed' },
         { label: 'Total', value: orders.length, color: '#3b82f6', onClick: () => setFilter('all'), active: filter === 'all' }
-    ]
+    ], [orders, filter])
 
     const sidebarItems = useSidebarItems([
         { id: 'active', label: 'Active', icon: '🔄', count: stats[0].value },
@@ -150,6 +178,7 @@ export default function OrdersPage() {
     )
 
     return (
+        <ErrorBoundary>
         <div className="min-h-screen bg-[var(--bg)]">
             <AutoSidebar items={sidebarItems} title="Filters" />
 
@@ -180,10 +209,20 @@ export default function OrdersPage() {
                                         <button onClick={() => setShowSplitBill(selectedOrder)} className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-[var(--bg)] text-[var(--fg)] border border-[var(--border)] rounded-lg hover:bg-[var(--card)] font-medium flex items-center justify-center gap-2 text-sm sm:text-base active:scale-95">
                                             <Users className="w-4 h-4" /> <span className="hidden sm:inline">Split</span>
                                         </button>
-                                        {selectedOrder.status === 'pending' && (
-                                            <button onClick={() => closeOrder(selectedOrder)} disabled={closingOrder === selectedOrder.id} className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm sm:text-base active:scale-95">
-                                                {closingOrder === selectedOrder.id ? 'Closing...' : 'Complete'}
+                                        {selectedOrder.status === 'completed' && (
+                                            <button onClick={() => setShowPayment(selectedOrder)} className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2 text-sm sm:text-base active:scale-95">
+                                                <DollarSign className="w-4 h-4" /> <span className="hidden sm:inline">Payment</span>
                                             </button>
+                                        )}
+                                        {selectedOrder.status === 'pending' && (
+                                            <>
+                                                <button onClick={() => cancelOrder(selectedOrder)} disabled={cancelling === selectedOrder.id} className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm sm:text-base active:scale-95 disabled:opacity-50">
+                                                    {cancelling === selectedOrder.id ? 'Cancelling...' : 'Cancel'}
+                                                </button>
+                                                <button onClick={() => closeOrder(selectedOrder)} disabled={closingOrder === selectedOrder.id} className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm sm:text-base active:scale-95">
+                                                    {closingOrder === selectedOrder.id ? 'Completing...' : 'Complete'}
+                                                </button>
+                                            </>
                                         )}
                                     </>
                                 }>
@@ -214,6 +253,17 @@ export default function OrdersPage() {
 
             {showReceipt && <ReceiptModal order={showReceipt} onClose={() => setShowReceipt(null)} />}
             {showSplitBill && <SplitBillModal order={showSplitBill} onClose={() => setShowSplitBill(null)} />}
+            {showPayment && (
+                <PaymentModal
+                    order={showPayment}
+                    onClose={() => setShowPayment(null)}
+                    onSuccess={() => {
+                        load()
+                        setShowPayment(null)
+                    }}
+                />
+            )}
         </div>
+        </ErrorBoundary>
     )
 }

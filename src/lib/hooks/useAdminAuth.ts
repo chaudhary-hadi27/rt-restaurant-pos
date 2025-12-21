@@ -10,14 +10,22 @@ export function useAdminAuth() {
     const pathname = usePathname()
 
     useEffect(() => {
-        const auth = sessionStorage.getItem('admin_auth') === 'true'
-        setIsAuthenticated(auth)
-        setLoading(false)
+        // ✅ FIX: Check auth only after component mounts
+        const checkAuth = () => {
+            const auth = sessionStorage.getItem('admin_auth') === 'true'
+            setIsAuthenticated(auth)
+            setLoading(false)
 
-        if (!auth && !pathname.includes('/login') && !pathname.includes('/forgot-password')) {
-            router.push('/admin/login')
+            // ✅ FIX: Don't redirect if already on login page
+            const isLoginPage = pathname.includes('/login')
+
+            if (!auth && !isLoginPage) {
+                router.push('/admin/login')
+            }
         }
-    }, [pathname])
+
+        checkAuth()
+    }, [pathname, router])
 
     const login = async (password: string) => {
         setLoading(true)
@@ -36,7 +44,7 @@ export function useAdminAuth() {
 
             const data = await res.json()
             return { success: false, error: data.error || 'Invalid password' }
-        } catch {
+        } catch (error) {
             return { success: false, error: 'Network error' }
         } finally {
             setLoading(false)

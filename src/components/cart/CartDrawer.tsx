@@ -6,6 +6,7 @@ import { Plus, Minus, X, CheckCircle, AlertCircle, Truck, Home } from 'lucide-re
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
 import ReceiptModal from '@/components/features/receipt/ReceiptGenerator'
+import { logger } from '@/lib/utils/logger'
 
 interface CartDrawerProps {
     isOpen: boolean
@@ -188,9 +189,8 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
             toast.add('success', isNew ? '✅ Order placed successfully!' : '✅ Items added to order!')
             cart.clearCart()
         } catch (error: any) {
-            console.error('Order error:', error)
+            logger.error('Order placement failed', error)
             toast.add('error', `❌ ${error.message || 'Failed to place order'}`)
-            setPlacing(false)
         }
     }
 
@@ -426,7 +426,7 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                         </div>
                         <button
                             onClick={placeOrder}
-                            disabled={placing}
+                            disabled={placing || cart.items.length === 0 || (orderType === 'dine-in' && (!cart.tableId || !cart.waiterId))}
                             className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                         >
                             {placing ? (

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import ResponsiveStatsGrid from '@/components/ui/ResponsiveStatsGrid'
@@ -10,6 +10,7 @@ import UniversalModal from '@/components/ui/UniversalModal'
 import { RefreshCw, DollarSign } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import type { TableWithRelations } from '@/types'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 export default function TablesPage() {
     const [tables, setTables] = useState<TableWithRelations[]>([])
@@ -55,18 +56,21 @@ export default function TablesPage() {
         order: t.current_order_id ? orders.find(o => o.id === t.current_order_id) || null : null
     }))
 
-    const filtered = enrichedTables.filter(t => statusFilter === 'all' || t.status === statusFilter)
+    const filtered = useMemo(
+        () => enrichedTables.filter(t => statusFilter === 'all' || t.status === statusFilter),
+        [enrichedTables, statusFilter]
+    )
 
     const getStatusColor = (status: string) => ({
         available: '#10b981', occupied: '#ef4444', reserved: '#f59e0b', cleaning: '#3b82f6'
     }[status] || '#6b7280')
 
-    const stats = [
+    const stats = useMemo(() => [
         { label: 'Total', value: tables.length, color: '#3b82f6', onClick: () => setStatusFilter('all'), active: statusFilter === 'all' },
         { label: 'Available', value: tables.filter(t => t.status === 'available').length, color: '#10b981', onClick: () => setStatusFilter('available'), active: statusFilter === 'available' },
         { label: 'Occupied', value: tables.filter(t => t.status === 'occupied').length, color: '#ef4444', onClick: () => setStatusFilter('occupied'), active: statusFilter === 'occupied' },
         { label: 'Reserved', value: tables.filter(t => t.status === 'reserved').length, color: '#f59e0b', onClick: () => setStatusFilter('reserved'), active: statusFilter === 'reserved' }
-    ]
+    ], [tables, statusFilter])
 
     const sidebarItems = useSidebarItems([
         { id: 'all', label: 'All Tables', icon: '🏠', count: tables.length },
@@ -150,6 +154,7 @@ export default function TablesPage() {
     )
 
     return (
+        <ErrorBoundary>
         <div className="min-h-screen bg-[var(--bg)]">
             <AutoSidebar items={sidebarItems} title="Status" />
 
@@ -186,5 +191,6 @@ export default function TablesPage() {
                 </UniversalModal>
             )}
         </div>
+        </ErrorBoundary>
     )
 }

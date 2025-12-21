@@ -8,6 +8,8 @@ import ResponsiveStatsGrid from '@/components/ui/ResponsiveStatsGrid'
 import { FormModal } from '@/components/ui/UniversalModal'
 import ResponsiveInput, { FormGrid } from '@/components/ui/ResponsiveInput'
 import { useToast } from '@/components/ui/Toast'
+import { validate } from '@/lib/utils/validation'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 export default function AdminTablesPage() {
     const { data: tables, loading, insert, update, remove } = useSupabase('restaurant_tables', { order: { column: 'table_number' }, realtime: true })
@@ -40,17 +42,27 @@ export default function AdminTablesPage() {
         setModal(table || {})
     }
 
+// In save function, replace validation:
     const save = async () => {
-        if (!form.table_number || !form.capacity) return toast.add('error', 'Table number and capacity required')
-
-        if (!modal?.id) {
-            const duplicate = tables.find((t: any) => t.table_number === parseInt(form.table_number))
-            if (duplicate) return toast.add('error', `❌ Table ${form.table_number} already exists!`)
+        const errors = {
+            table_number: validate.tableNumber(form.table_number),
+            capacity: validate.capacity(form.capacity)
         }
 
-        if (modal?.id) {
-            const duplicate = tables.find((t: any) => t.table_number === parseInt(form.table_number) && t.id !== modal.id)
-            if (duplicate) return toast.add('error', `❌ Table number ${form.table_number} is already used!`)
+        if (errors.table_number || errors.capacity) {
+            toast.add('error', errors.table_number || errors.capacity || 'Invalid input')
+            return
+        }
+
+        // Check duplicate
+        if (!modal?.id) {
+            if (tables.find((t: any) => t.table_number === parseInt(form.table_number))) {
+                return toast.add('error', `Table ${form.table_number} exists!`)
+            }
+        } else {
+            if (tables.find((t: any) => t.table_number === parseInt(form.table_number) && t.id !== modal.id)) {
+                return toast.add('error', `Table ${form.table_number} is used!`)
+            }
         }
 
         const data = { table_number: parseInt(form.table_number), capacity: parseInt(form.capacity), section: form.section || 'Main' }
@@ -59,19 +71,19 @@ export default function AdminTablesPage() {
             if (modal?.id) {
                 const { error } = await update(modal.id, data)
                 if (error) throw error
-                toast.add('success', '✅ Table updated!')
+                toast.add('success', '✅ Updated!')
             } else {
                 const { error } = await insert({ ...data, status: 'available' })
                 if (error) throw error
-                toast.add('success', `✅ Table ${form.table_number} added!`)
+                toast.add('success', '✅ Added!')
             }
             setModal(null)
             setForm({ table_number: '', capacity: '', section: '' })
         } catch (error: any) {
-            if (error?.code === '23505') toast.add('error', `❌ Table ${form.table_number} already exists!`)
-            else toast.add('error', `❌ ${error.message || 'Failed to save'}`)
+            toast.add('error', `❌ ${error.message || 'Failed'}`)
         }
     }
+
 
     const deleteTable = async (id: string) => {
         const table = tables.find((t: any) => t.id === id)
@@ -88,6 +100,7 @@ export default function AdminTablesPage() {
     }
 
     return (
+        <ErrorBoundary>
         <>
             <AutoSidebar items={sidebarItems} title="Sections" />
 
@@ -170,5 +183,6 @@ export default function AdminTablesPage() {
                 </div>
             </FormModal>
         </>
+        </ErrorBoundary>
     )
 }

@@ -1,34 +1,34 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import bcrypt from 'bcryptjs'
+import { rateLimit } from '@/lib/utils/rateLimiter'
 
 export async function POST(request: Request) {
     try {
-        const { email, password } = await request.json()
+        // Get IP for rate limiting
+        const forwarded = request.headers.get('x-forwarded-for')
+        const ip = forwarded ? forwarded.split(',')[0] : 'unknown'
 
-        if (!email || !password) {
-            return NextResponse.json({ error: 'Email and password required' }, { status: 400 })
+        // Rate limit: 5 attempts per 15 minutes
+        if (!rateLimit(ip, 5, 15 * 60 * 1000)) {
+            return NextResponse.json(
+                { error: 'Too many login attempts. Please try again in 15 minutes.' },
+                { status: 429 }
+            )
         }
 
-        const supabase = await createClient()
+        const { password } = await request.json()
 
-        const { data: admin, error } = await supabase
-            .from('admin_settings')
-            .select('password_hash')
-            .eq('email', email)
-            .maybeSingle()
-
-        if (!admin || error) {
-            return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+        if (!password) {
+            return NextResponse.json({ error: 'Password required' }, { status: 400 })
         }
 
-        const isValid = await bcrypt.compare(password, admin.password_hash)
+        const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
 
-        if (!isValid) {
-            return NextResponse.json({ error: 'Invalid password' }, { status: 401 })
+        if (password === ADMIN_PASSWORD) {
+            return NextResponse.json({ success: true })
         }
 
-        return NextResponse.json({ success: true })
+        return NextResponse.json({ error: 'Invalid password' }, { status: 401 })
     } catch (error) {
         console.error('Auth error:', error)
         return NextResponse.json({ error: 'Authentication failed' }, { status: 500 })
