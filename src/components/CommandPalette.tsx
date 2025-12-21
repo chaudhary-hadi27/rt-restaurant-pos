@@ -9,7 +9,7 @@ const ACTIONS = [
     { id: 'new-order', label: 'Start New Order', icon: Plus, href: '/', category: 'restaurant', keywords: ['order', 'new'] },
     { id: 'view-tables', label: 'View Tables', icon: LayoutGrid, href: '/tables', category: 'restaurant', keywords: ['table'] },
     { id: 'view-orders', label: 'View Orders', icon: ShoppingBag, href: '/orders', category: 'restaurant', keywords: ['order'] },
-    { id: 'manage-shifts', label: 'Shifts', icon: Clock, href: '/shifts', category: 'restaurant', keywords: ['shift'] },
+    { id: 'manage-attendance', label: 'Attendance', icon: Clock, href: '/attendance', category: 'restaurant', keywords: ['shift'] },
 
     // Admin
     { id: 'admin-dashboard', label: 'Admin Dashboard', icon: Shield, href: '/admin', category: 'admin', keywords: ['admin'] },
@@ -17,7 +17,7 @@ const ACTIONS = [
     { id: 'manage-menu', label: 'Menu', icon: UtensilsCrossed, href: '/admin/menu', category: 'admin', keywords: ['menu'] },
     { id: 'manage-waiters', label: 'Staff', icon: Users, href: '/admin/waiters', category: 'admin', keywords: ['staff', 'waiter'] },
     { id: 'manage-tables-admin', label: 'Tables', icon: LayoutGrid, href: '/admin/tables', category: 'admin', keywords: ['table'] },
-    { id: 'manage-shifts', label: 'Shifts', icon: Clock, href: '/admin/shifts', category: 'admin', keywords: ['shift'] },
+    { id: 'manage-attendance', label: 'Attendance', icon: Clock, href: '/admin/attendance', category: 'admin', keywords: ['shift'] },
 
 
     // Quick

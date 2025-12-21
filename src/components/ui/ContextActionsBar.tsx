@@ -206,10 +206,10 @@ export default function ContextActionsBar({ onAction, customActions }: ContextAc
                     variant: 'primary'
                 },
                 {
-                    id: 'view-shifts',
+                    id: 'view-attendance',
                     label: 'View Shifts',
                     icon: Clock,
-                    href: '/admin/shifts',
+                    href: '/admin/attendance',
                     variant: 'secondary'
                 },
                 {
@@ -270,7 +270,7 @@ export default function ContextActionsBar({ onAction, customActions }: ContextAc
         }
 
         // Admin - Shifts
-        if (pathname === '/admin/shifts') {
+        if (pathname === '/admin/attendance') {
             return [
                 {
                     id: 'clock-in',
