@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useCart } from '@/lib/store/cart-store'
-import { Plus, Minus, X, CheckCircle, AlertCircle, Truck, Home } from 'lucide-react'
+import { Plus, Minus, X, CheckCircle, AlertCircle, Truck, Home, CreditCard, Banknote } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
 import ReceiptModal from '@/components/features/receipt/ReceiptGenerator'
@@ -22,6 +22,7 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
     const [placing, setPlacing] = useState(false)
     const [showReceipt, setShowReceipt] = useState<any>(null)
     const [orderType, setOrderType] = useState<'dine-in' | 'delivery'>('dine-in')
+    const [paymentMethod, setPaymentMethod] = useState<'cash' | 'online'>('cash')
     const [deliveryDetails, setDeliveryDetails] = useState({
         customer_name: '',
         customer_phone: '',
@@ -80,7 +81,9 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                     tax: tax,
                     total_amount: total,
                     notes: cart.notes || null,
-                    order_type: orderType
+                    order_type: orderType,
+                    payment_method: paymentMethod,
+                    receipt_printed: false
                 }
 
                 if (orderType === 'dine-in') {
@@ -169,6 +172,7 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
             setShowReceipt({
                 id: orderId,
                 order_type: orderType,
+                payment_method: paymentMethod,
                 restaurant_tables: orderType === 'dine-in' ? { table_number: table?.table_number || 0 } : null,
                 customer_name: orderType === 'delivery' ? deliveryDetails.customer_name : null,
                 customer_phone: orderType === 'delivery' ? deliveryDetails.customer_phone : null,
@@ -238,6 +242,35 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                             >
                                 <Truck className="w-6 h-6" />
                                 <span className="text-sm font-medium">Delivery</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Payment Method */}
+                    <div className="p-4 bg-green-600/10 border border-green-600/30 rounded-lg space-y-3">
+                        <p className="text-sm font-semibold text-[var(--fg)]">Payment Method</p>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={() => setPaymentMethod('cash')}
+                                className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
+                                    paymentMethod === 'cash'
+                                        ? 'border-green-600 bg-green-600/20'
+                                        : 'border-[var(--border)] bg-[var(--bg)]'
+                                }`}
+                            >
+                                <Banknote className="w-6 h-6" />
+                                <span className="text-sm font-medium">Cash</span>
+                            </button>
+                            <button
+                                onClick={() => setPaymentMethod('online')}
+                                className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
+                                    paymentMethod === 'online'
+                                        ? 'border-green-600 bg-green-600/20'
+                                        : 'border-[var(--border)] bg-[var(--bg)]'
+                                }`}
+                            >
+                                <CreditCard className="w-6 h-6" />
+                                <span className="text-sm font-medium">Online</span>
                             </button>
                         </div>
                     </div>

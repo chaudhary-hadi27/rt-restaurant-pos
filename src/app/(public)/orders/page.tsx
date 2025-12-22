@@ -1,15 +1,15 @@
 "use client"
 
-import { useState, useEffect, useMemo } from 'react' // Add useMemo
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Printer, Users, RefreshCw, DollarSign } from 'lucide-react'
+import { Printer, Users, RefreshCw, DollarSign, History, Clock, CheckCircle2 } from 'lucide-react'
 import { UniversalDataTable } from '@/components/ui/UniversalDataTable'
 import ResponsiveStatsGrid from '@/components/ui/ResponsiveStatsGrid'
 import AutoSidebar, { useSidebarItems } from '@/components/layout/AutoSidebar'
 import UniversalModal from '@/components/ui/UniversalModal'
 import ReceiptModal from '@/components/features/receipt/ReceiptGenerator'
 import SplitBillModal from '@/components/features/split-bill/SplitBillModal'
-import PaymentModal from '@/components/features/payment/PaymentModal'
+// import PaymentModal from '@/components/features/payment/PaymentModal'
 import { useToast } from '@/components/ui/Toast'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { logger } from '@/lib/utils/logger'
@@ -19,6 +19,7 @@ import { getOrderStatusColor } from '@/lib/utils/statusHelpers'
 export default function OrdersPage() {
     const [orders, setOrders] = useState<any[]>([])
     const [filter, setFilter] = useState('active')
+    const [dateFilter, setDateFilter] = useState('today')
     const [loading, setLoading] = useState(true)
     const [showReceipt, setShowReceipt] = useState<any>(null)
     const [showSplitBill, setShowSplitBill] = useState<any>(null)
@@ -105,21 +106,54 @@ export default function OrdersPage() {
         setCancelling(null)
     }
 
-    const filtered = useMemo(
-        () => orders.filter(o => filter === 'all' || (filter === 'active' ? o.status === 'pending' : o.status === 'completed')),
-        [orders, filter]
-    )
+    // Get today's date range
+    const getTodayRange = () => {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const tomorrow = new Date(today)
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        return { start: today.toISOString(), end: tomorrow.toISOString() }
+    }
+
+    const filtered = useMemo(() => {
+        let result = orders
+
+        // Filter by date for history tab
+        if (filter === 'history') {
+            const { start, end } = getTodayRange()
+            result = result.filter(o => {
+                const orderDate = new Date(o.created_at)
+                return orderDate >= new Date(start) && orderDate < new Date(end) && o.status === 'completed'
+            })
+        } else if (filter === 'active') {
+            result = result.filter(o => o.status === 'pending')
+        } else if (filter === 'printed') {
+            result = result.filter(o => o.receipt_printed === true && o.status === 'pending')
+        } else if (filter === 'unpaid') {
+            result = result.filter(o => o.receipt_printed === false && o.status === 'pending')
+        }
+
+        return result
+    }, [orders, filter])
 
     const stats = useMemo(() => [
         { label: 'Active', value: orders.filter(o => o.status === 'pending').length, color: '#f59e0b', onClick: () => setFilter('active'), active: filter === 'active' },
-        { label: 'Completed', value: orders.filter(o => o.status === 'completed').length, color: '#10b981', onClick: () => setFilter('completed'), active: filter === 'completed' },
-        { label: 'Total', value: orders.length, color: '#3b82f6', onClick: () => setFilter('all'), active: filter === 'all' }
+        { label: 'Printed', value: orders.filter(o => o.receipt_printed === true && o.status === 'pending').length, color: '#3b82f6', onClick: () => setFilter('printed'), active: filter === 'printed' },
+        { label: 'Unpaid', value: orders.filter(o => o.receipt_printed === false && o.status === 'pending').length, color: '#ef4444', onClick: () => setFilter('unpaid'), active: filter === 'unpaid' },
+        { label: "Today's Complete", value: (() => {
+                const { start, end } = getTodayRange()
+                return orders.filter(o => {
+                    const orderDate = new Date(o.created_at)
+                    return orderDate >= new Date(start) && orderDate < new Date(end) && o.status === 'completed'
+                }).length
+            })(), color: '#10b981', onClick: () => setFilter('history'), active: filter === 'history' }
     ], [orders, filter])
 
     const sidebarItems = useSidebarItems([
-        { id: 'active', label: 'Active', icon: '🔄', count: stats[0].value },
-        { id: 'completed', label: 'Completed', icon: '✅', count: stats[1].value },
-        { id: 'all', label: 'All Orders', icon: '📋', count: stats[2].value }
+        { id: 'active', label: 'Active Orders', icon: '🔄', count: stats[0].value },
+        { id: 'printed', label: 'Printed (Paid)', icon: '🖨️', count: stats[1].value },
+        { id: 'unpaid', label: 'Unpaid', icon: '⏳', count: stats[2].value },
+        { id: 'history', label: 'Today Complete', icon: '✅', count: stats[3].value }
     ], filter, setFilter)
 
     const columns = [
@@ -146,6 +180,24 @@ export default function OrdersPage() {
             render: (row: any) => <span className="text-sm text-[var(--fg)]">{row.waiters?.name || 'N/A'}</span>
         },
         {
+            key: 'payment',
+            label: 'Payment',
+            render: (row: any) => (
+                <div className="flex flex-col gap-1">
+                    <span className={`inline-flex px-2 py-0.5 rounded text-xs font-semibold ${
+                        row.payment_method === 'cash' ? 'bg-green-500/20 text-green-600' : 'bg-blue-500/20 text-blue-600'
+                    }`}>
+                        {row.payment_method === 'cash' ? '💵 Cash' : '💳 Online'}
+                    </span>
+                    {row.receipt_printed && (
+                        <span className="text-xs text-green-600 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Printed
+                        </span>
+                    )}
+                </div>
+            )
+        },
+        {
             key: 'status',
             label: 'Status',
             render: (row: any) => {
@@ -168,7 +220,12 @@ export default function OrdersPage() {
                     <p className="font-semibold text-[var(--fg)] text-sm">#{row.id.slice(0, 8)}</p>
                     <p className="text-xs text-[var(--muted)]">Table {row.restaurant_tables?.table_number}</p>
                 </div>
-                <span className={`px-2 py-1 rounded text-xs ${row.status === 'pending' ? 'bg-yellow-500/20 text-yellow-600' : 'bg-green-500/20 text-green-600'}`}>{row.status}</span>
+                <div className="flex flex-col gap-1 items-end">
+                    <span className={`px-2 py-1 rounded text-xs ${row.status === 'pending' ? 'bg-yellow-500/20 text-yellow-600' : 'bg-green-500/20 text-green-600'}`}>{row.status}</span>
+                    <span className={`text-xs ${row.payment_method === 'cash' ? 'text-green-600' : 'text-blue-600'}`}>
+                        {row.payment_method === 'cash' ? '💵' : '💳'}
+                    </span>
+                </div>
             </div>
             <p className="text-lg font-bold text-blue-600">PKR {row.total_amount.toLocaleString()}</p>
         </div>
@@ -176,91 +233,76 @@ export default function OrdersPage() {
 
     return (
         <ErrorBoundary>
-        <div className="min-h-screen bg-[var(--bg)]">
-            <AutoSidebar items={sidebarItems} title="Filters" />
+            <div className="min-h-screen bg-[var(--bg)]">
+                <AutoSidebar items={sidebarItems} title="Filters" />
 
-            <div className="lg:ml-64">
-                <PageHeader
-                    title="Orders"
-                    subtitle={`${stats[0].value} active • ${stats[1].value} completed`}
-                    action={
-                        <button onClick={load} className="p-2 hover:bg-[var(--bg)] rounded-lg active:scale-95">
-                            <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted)]" />
-                        </button>
-                    }
-                />
+                <div className="lg:ml-64">
+                    <PageHeader
+                        title="Orders"
+                        subtitle={`${stats[0].value} active • ${stats[1].value} printed • ${stats[2].value} unpaid`}
+                        action={
+                            <button onClick={load} className="p-2 hover:bg-[var(--bg)] rounded-lg active:scale-95">
+                                <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--muted)]" />
+                            </button>
+                        }
+                    />
 
-                <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
-                    <ResponsiveStatsGrid stats={stats} />
-                    <UniversalDataTable columns={columns} data={filtered} loading={loading} searchable searchPlaceholder="Search orders..." onRowClick={setSelectedOrder} renderMobileCard={renderMobileCard} />
+                    <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+                        <ResponsiveStatsGrid stats={stats} />
+                        <UniversalDataTable columns={columns} data={filtered} loading={loading} searchable searchPlaceholder="Search orders..." onRowClick={setSelectedOrder} renderMobileCard={renderMobileCard} />
+                    </div>
                 </div>
-            </div>
 
-            {selectedOrder && (
-                <UniversalModal open={!!selectedOrder} onClose={() => setSelectedOrder(null)} title={`Order #${selectedOrder.id.slice(0, 8).toUpperCase()}`} subtitle={`Table ${selectedOrder.restaurant_tables?.table_number} • ${selectedOrder.waiters?.name}`} size="lg"
-                                footer={
-                                    <>
-                                        <button onClick={() => setShowReceipt(selectedOrder)} className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center gap-2 text-sm sm:text-base active:scale-95">
-                                            <Printer className="w-4 h-4" /> <span className="hidden sm:inline">Print</span>
-                                        </button>
-                                        <button onClick={() => setShowSplitBill(selectedOrder)} className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-[var(--bg)] text-[var(--fg)] border border-[var(--border)] rounded-lg hover:bg-[var(--card)] font-medium flex items-center justify-center gap-2 text-sm sm:text-base active:scale-95">
-                                            <Users className="w-4 h-4" /> <span className="hidden sm:inline">Split</span>
-                                        </button>
-                                        {selectedOrder.status === 'completed' && (
-                                            <button onClick={() => setShowPayment(selectedOrder)} className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2 text-sm sm:text-base active:scale-95">
-                                                <DollarSign className="w-4 h-4" /> <span className="hidden sm:inline">Payment</span>
+                {selectedOrder && (
+                    <UniversalModal open={!!selectedOrder} onClose={() => setSelectedOrder(null)} title={`Order #${selectedOrder.id.slice(0, 8).toUpperCase()}`} subtitle={`Table ${selectedOrder.restaurant_tables?.table_number} • ${selectedOrder.waiters?.name} • ${selectedOrder.payment_method === 'cash' ? '💵 Cash' : '💳 Online'}`} size="lg"
+                                    footer={
+                                        <>
+                                            <button onClick={() => setShowReceipt(selectedOrder)} className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center gap-2 text-sm sm:text-base active:scale-95">
+                                                <Printer className="w-4 h-4" /> <span className="hidden sm:inline">Print</span>
                                             </button>
-                                        )}
-                                        {selectedOrder.status === 'pending' && (
-                                            <>
-                                                <button onClick={() => cancelOrder(selectedOrder)} disabled={cancelling === selectedOrder.id} className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm sm:text-base active:scale-95 disabled:opacity-50">
-                                                    {cancelling === selectedOrder.id ? 'Cancelling...' : 'Cancel'}
-                                                </button>
-                                                <button onClick={() => closeOrder(selectedOrder)} disabled={closingOrder === selectedOrder.id} className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm sm:text-base active:scale-95">
-                                                    {closingOrder === selectedOrder.id ? 'Completing...' : 'Complete'}
-                                                </button>
-                                            </>
-                                        )}
-                                    </>
-                                }>
-                    <div className="space-y-3 sm:space-y-4">
-                        {selectedOrder.order_items?.map((item: any) => (
-                            <div key={item.id} className="flex justify-between p-2.5 sm:p-3 bg-[var(--bg)] rounded-lg">
-                                <span className="font-medium text-[var(--fg)] text-sm">{item.quantity}× {item.menu_items?.name}</span>
-                                <span className="font-bold text-[var(--fg)] text-sm">PKR {item.total_price}</span>
-                            </div>
-                        ))}
-                        <div className="p-3 sm:p-4 bg-[var(--bg)] rounded-lg space-y-2">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-[var(--muted)]">Subtotal</span>
-                                <span className="font-medium">PKR {selectedOrder.subtotal.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-[var(--muted)]">Tax (5%)</span>
-                                <span className="font-medium">PKR {selectedOrder.tax.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between text-base sm:text-lg font-bold pt-2 border-t border-[var(--border)]">
-                                <span>Total</span>
-                                <span className="text-blue-600">PKR {selectedOrder.total_amount.toLocaleString()}</span>
+                                            <button onClick={() => setShowSplitBill(selectedOrder)} className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-[var(--bg)] text-[var(--fg)] border border-[var(--border)] rounded-lg hover:bg-[var(--card)] font-medium flex items-center justify-center gap-2 text-sm sm:text-base active:scale-95">
+                                                <Users className="w-4 h-4" /> <span className="hidden sm:inline">Split</span>
+                                            </button>
+                                            {selectedOrder.status === 'pending' && (
+                                                <>
+                                                    <button onClick={() => cancelOrder(selectedOrder)} disabled={cancelling === selectedOrder.id} className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm sm:text-base active:scale-95 disabled:opacity-50">
+                                                        {cancelling === selectedOrder.id ? 'Cancelling...' : 'Cancel'}
+                                                    </button>
+                                                    <button onClick={() => closeOrder(selectedOrder)} disabled={closingOrder === selectedOrder.id} className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm sm:text-base active:scale-95">
+                                                        {closingOrder === selectedOrder.id ? 'Completing...' : 'Complete'}
+                                                    </button>
+                                                </>
+                                            )}
+                                        </>
+                                    }>
+                        <div className="space-y-3 sm:space-y-4">
+                            {selectedOrder.order_items?.map((item: any) => (
+                                <div key={item.id} className="flex justify-between p-2.5 sm:p-3 bg-[var(--bg)] rounded-lg">
+                                    <span className="font-medium text-[var(--fg)] text-sm">{item.quantity}× {item.menu_items?.name}</span>
+                                    <span className="font-bold text-[var(--fg)] text-sm">PKR {item.total_price}</span>
+                                </div>
+                            ))}
+                            <div className="p-3 sm:p-4 bg-[var(--bg)] rounded-lg space-y-2">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-[var(--muted)]">Subtotal</span>
+                                    <span className="font-medium">PKR {selectedOrder.subtotal.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-[var(--muted)]">Tax (5%)</span>
+                                    <span className="font-medium">PKR {selectedOrder.tax.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-base sm:text-lg font-bold pt-2 border-t border-[var(--border)]">
+                                    <span>Total</span>
+                                    <span className="text-blue-600">PKR {selectedOrder.total_amount.toLocaleString()}</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </UniversalModal>
-            )}
+                    </UniversalModal>
+                )}
 
-            {showReceipt && <ReceiptModal order={showReceipt} onClose={() => setShowReceipt(null)} />}
-            {showSplitBill && <SplitBillModal order={showSplitBill} onClose={() => setShowSplitBill(null)} />}
-            {showPayment && (
-                <PaymentModal
-                    order={showPayment}
-                    onClose={() => setShowPayment(null)}
-                    onSuccess={() => {
-                        load()
-                        setShowPayment(null)
-                    }}
-                />
-            )}
-        </div>
+                {showReceipt && <ReceiptModal order={showReceipt} onClose={() => setShowReceipt(null)} />}
+                {showSplitBill && <SplitBillModal order={showSplitBill} onClose={() => setShowSplitBill(null)} />}
+            </div>
         </ErrorBoundary>
     )
 }
