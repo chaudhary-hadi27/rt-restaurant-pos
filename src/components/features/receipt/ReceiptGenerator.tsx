@@ -1,7 +1,6 @@
-// src/components/features/receipt/ReceiptGenerator.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Printer, Download, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -29,6 +28,8 @@ type ReceiptProps = {
 
 export default function ReceiptModal({ order, onClose }: ReceiptProps) {
     const [categories, setCategories] = useState<any[]>([])
+    const [downloading, setDownloading] = useState(false)
+    const receiptRef = useRef<HTMLDivElement>(null)
     const supabase = createClient()
 
     useEffect(() => {
@@ -44,7 +45,6 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
         setCategories(data || [])
     }
 
-    // Group items by category
     const groupedItems = order.order_items.reduce((acc: any, item) => {
         const categoryId = item.menu_items.category_id
         if (!acc[categoryId]) {
@@ -58,114 +58,114 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
         window.print()
     }
 
-    const handleDownload = () => {
-        const receiptHTML = document.getElementById('receipt-content')?.innerHTML || ''
-        const fullHTML = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Receipt #${order.id.slice(0, 8)}</title>
-          <style>
-            body { 
-              font-family: monospace; 
-              max-width: 400px; 
-              margin: 20px auto; 
-              padding: 20px;
-            }
-            .header { text-align: center; margin-bottom: 20px; }
-            .divider { border-top: 2px dashed #000; margin: 10px 0; }
-            .category-header { 
-              font-weight: bold; 
-              margin-top: 15px; 
-              margin-bottom: 8px;
-              padding: 5px 8px;
-              background: #f0f0f0;
-              border-left: 3px solid #000;
-            }
-            table { width: 100%; }
-            .text-right { text-align: right; }
-            .bold { font-weight: bold; }
-            .total-row { font-size: 18px; margin-top: 10px; }
-          </style>
-        </head>
-        <body>${receiptHTML}</body>
-      </html>
-    `
+    const handleDownload = async () => {
+        setDownloading(true)
+        try {
+            // Import html2canvas dynamically
+            const html2canvas = (await import('html2canvas')).default
 
-        const blob = new Blob([fullHTML], { type: 'text/html' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `receipt-${order.id.slice(0, 8)}.html`
-        a.click()
+            if (!receiptRef.current) return
+
+            // Capture the receipt as canvas
+            const canvas = await html2canvas(receiptRef.current, {
+                backgroundColor: '#ffffff',
+                scale: 2, // Higher quality
+                logging: false,
+                useCORS: true
+            })
+
+            // Convert to blob
+            canvas.toBlob((blob) => {
+                if (!blob) return
+
+                // Create download link
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `receipt-${order.id.slice(0, 8)}.png`
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
+            }, 'image/png')
+
+        } catch (error) {
+            console.error('Download failed:', error)
+        } finally {
+            setDownloading(false)
+        }
     }
 
     return (
-        <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
-            <div className="rounded-xl w-full max-w-md border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/70">
+            <div className="rounded-xl w-full max-w-md border bg-white">
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: 'var(--border)' }}>
+                <div className="flex items-center justify-between p-6 border-b">
                     <div className="flex items-center gap-3">
-                        <Printer className="w-6 h-6" style={{ color: '#3b82f6' }} />
-                        <h3 className="text-xl font-bold" style={{ color: 'var(--fg)' }}>Receipt</h3>
+                        <Printer className="w-6 h-6 text-blue-600" />
+                        <h3 className="text-xl font-bold text-gray-900">Receipt</h3>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:opacity-70" style={{ color: 'var(--muted)' }}>
+                    <button onClick={onClose} className="p-2 hover:opacity-70 text-gray-500">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 {/* Receipt Content */}
-                <div id="receipt-content" className="p-6 font-mono" style={{ backgroundColor: 'var(--bg)' }}>
+                <div
+                    ref={receiptRef}
+                    className="p-6 font-mono bg-white"
+                    style={{ maxHeight: '60vh', overflowY: 'auto' }}
+                >
                     {/* Restaurant Header */}
                     <div className="text-center mb-6">
-                        <h2 className="text-2xl font-bold mb-1" style={{ color: 'var(--fg)' }}>
+                        <h2 className="text-2xl font-bold mb-1 text-gray-900">
                             RT Restaurant
                         </h2>
-                        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                        <p className="text-sm text-gray-600">
                             Delicious Food, Memorable Moments
                         </p>
-                        <div className="border-t-2 border-dashed my-3" style={{ borderColor: 'var(--border)' }}></div>
-                        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                        <div className="border-t-2 border-dashed my-3 border-gray-300"></div>
+                        <p className="text-sm text-gray-600">
                             Sooter Mills Rd, Lahore
                         </p>
-                        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                        <p className="text-sm text-gray-600">
                             Tel: +92 321 9343489
                         </p>
                     </div>
 
-                    <div className="border-t-2 border-dashed my-4" style={{ borderColor: 'var(--border)' }}></div>
+                    <div className="border-t-2 border-dashed my-4 border-gray-300"></div>
 
                     {/* Order Info */}
                     <div className="space-y-1 mb-4 text-sm">
                         <div className="flex justify-between">
-                            <span style={{ color: 'var(--muted)' }}>Order #</span>
-                            <span style={{ color: 'var(--fg)' }} className="font-bold">
+                            <span className="text-gray-600">Order #</span>
+                            <span className="font-bold text-gray-900">
                                 {order.id.slice(0, 8).toUpperCase()}
                             </span>
                         </div>
                         <div className="flex justify-between">
-                            <span style={{ color: 'var(--muted)' }}>Date</span>
-                            <span style={{ color: 'var(--fg)' }}>
+                            <span className="text-gray-600">Date</span>
+                            <span className="text-gray-900">
                                 {new Date(order.created_at).toLocaleString()}
                             </span>
                         </div>
                         {order.restaurant_tables && (
                             <div className="flex justify-between">
-                                <span style={{ color: 'var(--muted)' }}>Table</span>
-                                <span style={{ color: 'var(--fg)' }}>
+                                <span className="text-gray-600">Table</span>
+                                <span className="text-gray-900">
                                     #{order.restaurant_tables.table_number}
                                 </span>
                             </div>
                         )}
                         {order.waiters && (
                             <div className="flex justify-between">
-                                <span style={{ color: 'var(--muted)' }}>Waiter</span>
-                                <span style={{ color: 'var(--fg)' }}>{order.waiters.name}</span>
+                                <span className="text-gray-600">Waiter</span>
+                                <span className="text-gray-900">{order.waiters.name}</span>
                             </div>
                         )}
                     </div>
 
-                    <div className="border-t-2 border-dashed my-4" style={{ borderColor: 'var(--border)' }}></div>
+                    <div className="border-t-2 border-dashed my-4 border-gray-300"></div>
 
                     {/* Items Grouped by Category */}
                     <div className="mb-4">
@@ -173,27 +173,21 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
                             .filter(cat => groupedItems[cat.id]?.length > 0)
                             .map(category => (
                                 <div key={category.id} className="mb-3">
-                                    {/* Category Header */}
                                     <div
-                                        className="font-bold text-sm mb-2 px-2 py-1 rounded"
-                                        style={{
-                                            backgroundColor: 'var(--card)',
-                                            color: 'var(--fg)',
-                                            borderLeft: '3px solid #3b82f6'
-                                        }}
+                                        className="font-bold text-sm mb-2 px-2 py-1 rounded bg-gray-100 text-gray-900"
+                                        style={{ borderLeft: '3px solid #3b82f6' }}
                                     >
                                         {category.icon} {category.name.toUpperCase()}
                                     </div>
 
-                                    {/* Items in this category */}
                                     <div className="space-y-2">
                                         {groupedItems[category.id].map((item: any) => (
                                             <div key={item.id} className="text-sm">
                                                 <div className="flex justify-between">
-                                                    <span style={{ color: 'var(--fg)' }}>
+                                                    <span className="text-gray-900">
                                                         {item.quantity}x {item.menu_items.name}
                                                     </span>
-                                                    <span style={{ color: 'var(--fg)' }} className="font-bold">
+                                                    <span className="font-bold text-gray-900">
                                                         PKR {item.total_price}
                                                     </span>
                                                 </div>
@@ -203,18 +197,14 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
                                 </div>
                             ))}
 
-                        {/* Uncategorized items (if any) */}
+                        {/* Uncategorized items */}
                         {Object.keys(groupedItems).filter(catId =>
                             !categories.find(c => c.id === catId)
                         ).length > 0 && (
                             <div className="mb-3">
                                 <div
-                                    className="font-bold text-sm mb-2 px-2 py-1 rounded"
-                                    style={{
-                                        backgroundColor: 'var(--card)',
-                                        color: 'var(--fg)',
-                                        borderLeft: '3px solid #3b82f6'
-                                    }}
+                                    className="font-bold text-sm mb-2 px-2 py-1 rounded bg-gray-100 text-gray-900"
+                                    style={{ borderLeft: '3px solid #3b82f6' }}
                                 >
                                     📦 OTHER ITEMS
                                 </div>
@@ -225,10 +215,10 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
                                             groupedItems[catId].map((item: any, itemIndex: number) => (
                                                 <div key={`uncategorized-${catId}-${item.id}-${catIndex}-${itemIndex}`} className="text-sm">
                                                     <div className="flex justify-between">
-                                                        <span style={{ color: 'var(--fg)' }}>
+                                                        <span className="text-gray-900">
                                                             {item.quantity}x {item.menu_items.name}
                                                         </span>
-                                                        <span style={{ color: 'var(--fg)' }} className="font-bold">
+                                                        <span className="font-bold text-gray-900">
                                                             PKR {item.total_price}
                                                         </span>
                                                     </div>
@@ -240,28 +230,28 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
                         )}
                     </div>
 
-                    <div className="border-t-2 border-dashed my-4" style={{ borderColor: 'var(--border)' }}></div>
+                    <div className="border-t-2 border-dashed my-4 border-gray-300"></div>
 
                     {/* Totals */}
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                            <span style={{ color: 'var(--muted)' }}>Subtotal</span>
-                            <span style={{ color: 'var(--fg)' }}>PKR {order.subtotal.toFixed(2)}</span>
+                            <span className="text-gray-600">Subtotal</span>
+                            <span className="text-gray-900">PKR {order.subtotal.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between">
-                            <span style={{ color: 'var(--muted)' }}>Tax (5%)</span>
-                            <span style={{ color: 'var(--fg)' }}>PKR {order.tax.toFixed(2)}</span>
+                            <span className="text-gray-600">Tax (5%)</span>
+                            <span className="text-gray-900">PKR {order.tax.toFixed(2)}</span>
                         </div>
-                        <div className="flex justify-between text-lg font-bold pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
-                            <span style={{ color: 'var(--fg)' }}>TOTAL</span>
-                            <span style={{ color: '#3b82f6' }}>PKR {order.total_amount.toFixed(2)}</span>
+                        <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-300">
+                            <span className="text-gray-900">TOTAL</span>
+                            <span className="text-blue-600">PKR {order.total_amount.toFixed(2)}</span>
                         </div>
                     </div>
 
-                    <div className="border-t-2 border-dashed my-4" style={{ borderColor: 'var(--border)' }}></div>
+                    <div className="border-t-2 border-dashed my-4 border-gray-300"></div>
 
                     {/* Footer */}
-                    <div className="text-center text-sm" style={{ color: 'var(--muted)' }}>
+                    <div className="text-center text-sm text-gray-600">
                         <p className="mb-1 font-bold">Thank you for dining with us!</p>
                         <p className="mb-2">Please visit again</p>
                         <p className="text-xs">Follow us: @rtrestaurant</p>
@@ -269,22 +259,30 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-3 p-6 border-t" style={{ borderColor: 'var(--border)' }}>
+                <div className="flex gap-3 p-6 border-t">
                     <button
                         onClick={handleDownload}
-                        className="flex-1 px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2"
-                        style={{ backgroundColor: 'var(--bg)', color: 'var(--fg)' }}
+                        disabled={downloading}
+                        className="flex-1 px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 bg-gray-100 text-gray-900 hover:bg-gray-200 disabled:opacity-50"
                     >
-                        <Download className="w-4 h-4" />
-                        Download
+                        {downloading ? (
+                            <>
+                                <div className="w-4 h-4 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
+                                Downloading...
+                            </>
+                        ) : (
+                            <>
+                                <Download className="w-4 h-4" />
+                                Download PNG
+                            </>
+                        )}
                     </button>
                     <button
                         onClick={handlePrint}
-                        className="flex-1 px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2"
-                        style={{ backgroundColor: '#3b82f6', color: '#fff' }}
+                        className="flex-1 px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700"
                     >
                         <Printer className="w-4 h-4" />
-                        Print Receipt
+                        Print
                     </button>
                 </div>
             </div>

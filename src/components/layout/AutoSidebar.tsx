@@ -1,6 +1,7 @@
 "use client"
 
 import { X } from 'lucide-react'
+import { useState } from 'react'
 
 export interface SidebarItem {
     id: string
@@ -12,10 +13,46 @@ export interface SidebarItem {
 }
 
 export default function AutoSidebar({ items, title }: { items: SidebarItem[]; title?: string }) {
+    const [mobileOpen, setMobileOpen] = useState(false)
+
     if (!items || items.length === 0) return null
 
     return (
         <>
+            {/* Mobile: Horizontal Scrollable Chips - Sticky */}
+            <div className="lg:hidden sticky top-16 z-20 bg-[var(--card)] border-b border-[var(--border)]">
+                <div className="px-3 py-2.5">
+                    <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
+                        {items.map(item => (
+                            <button
+                                key={item.id}
+                                onClick={() => {
+                                    item.onClick()
+                                    setMobileOpen(false)
+                                }}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all flex-shrink-0 active:scale-95 ${
+                                    item.active
+                                        ? 'bg-blue-600 text-white shadow-md'
+                                        : 'bg-[var(--bg)] text-[var(--fg)] border border-[var(--border)] hover:border-blue-600'
+                                }`}
+                            >
+                                {item.icon && <span className="text-sm">{item.icon}</span>}
+                                <span>{item.label}</span>
+                                {item.count !== undefined && (
+                                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                                        item.active
+                                            ? 'bg-white/20 text-white'
+                                            : 'bg-[var(--card)] text-[var(--muted)]'
+                                    }`}>
+                                        {item.count}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
             {/* Desktop: Fixed Nested Sidebar */}
             <aside className="hidden lg:block fixed top-0 left-16 h-screen w-64 bg-[var(--card)] border-r border-[var(--border)] z-30">
                 {title && (
@@ -25,14 +62,25 @@ export default function AutoSidebar({ items, title }: { items: SidebarItem[]; ti
                 )}
                 <div className="p-2 space-y-1 overflow-y-auto" style={{ height: title ? 'calc(100vh - 64px)' : '100vh' }}>
                     {items.map(item => (
-                        <button key={item.id} onClick={item.onClick}
-                                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-95 ${item.active ? 'bg-blue-600 text-white shadow-lg' : 'text-[var(--fg)] hover:bg-[var(--bg)]'}`}>
+                        <button
+                            key={item.id}
+                            onClick={item.onClick}
+                            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-95 ${
+                                item.active
+                                    ? 'bg-blue-600 text-white shadow-lg'
+                                    : 'text-[var(--fg)] hover:bg-[var(--bg)]'
+                            }`}
+                        >
                             <div className="flex items-center gap-2 min-w-0">
                                 {item.icon && <span className="flex-shrink-0 text-base">{item.icon}</span>}
                                 <span className="truncate">{item.label}</span>
                             </div>
                             {item.count !== undefined && (
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ml-2 ${item.active ? 'bg-white/20 text-white' : 'bg-[var(--bg)] text-[var(--muted)]'}`}>
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ml-2 ${
+                                    item.active
+                                        ? 'bg-white/20 text-white'
+                                        : 'bg-[var(--bg)] text-[var(--muted)]'
+                                }`}>
                                     {item.count}
                                 </span>
                             )}
@@ -40,24 +88,6 @@ export default function AutoSidebar({ items, title }: { items: SidebarItem[]; ti
                     ))}
                 </div>
             </aside>
-
-            {/* Mobile: Horizontal scrollable chips - Fixed at top */}
-            <div className="lg:hidden sticky top-16 z-20 bg-[var(--card)] border-b border-[var(--border)] px-3 py-2.5">
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-3 px-3">
-                    {items.map(item => (
-                        <button key={item.id} onClick={item.onClick}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-all flex-shrink-0 active:scale-95 ${item.active ? 'bg-blue-600 text-white shadow-md' : 'bg-[var(--bg)] text-[var(--fg)] border border-[var(--border)]'}`}>
-                            {item.icon && <span className="text-sm">{item.icon}</span>}
-                            <span>{item.label}</span>
-                            {item.count !== undefined && (
-                                <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${item.active ? 'bg-white/20 text-white' : 'bg-[var(--card)] text-[var(--muted)]'}`}>
-                                    {item.count}
-                                </span>
-                            )}
-                        </button>
-                    ))}
-                </div>
-            </div>
         </>
     )
 }

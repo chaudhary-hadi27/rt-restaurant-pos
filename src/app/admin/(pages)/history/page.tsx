@@ -1,17 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Download, TrendingUp, ArrowUp, ArrowDown, Minus, BarChart3, PieChart as PieIcon, Bell, AlertCircle } from 'lucide-react'
+import { Download, TrendingUp, ArrowUp, ArrowDown, Minus, BarChart3, Bell } from 'lucide-react'
 import AutoSidebar, { useSidebarItems } from '@/components/layout/AutoSidebar'
 import ResponsiveStatsGrid from '@/components/ui/ResponsiveStatsGrid'
 import { UniversalDataTable } from '@/components/ui/UniversalDataTable'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { getDateRange, getPreviousDateRange, loadWaiterReport, loadMenuReport, loadInventoryUsage, loadProfitLoss } from '@/lib/utils/historyHelpers'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 type Category = 'waiters' | 'menu' | 'inventory' | 'profit'
-type DateRange = 'today' | 'week' | 'month'
+type DateRange = 'today' | 'week' | 'month' | 'year'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
 
@@ -37,8 +37,8 @@ export default function HistoryPage() {
                 const { result, comparison: comp } = await loadWaiterReport(startDate, endDate, prevRange)
                 setData(result)
                 setComparison(comp)
-                setChartData(result.slice(0, 10).map(w => ({
-                    name: w.waiter_name,
+                setChartData(result.slice(0, 8).map(w => ({
+                    name: w.waiter_name.split(' ')[0],
                     revenue: w.total_revenue,
                     orders: w.total_orders
                 })))
@@ -53,31 +53,31 @@ export default function HistoryPage() {
                 const servedItems = result.filter(r => r.total_quantity > 0)
                 setData(result)
                 setComparison(comp)
-                setChartData(servedItems.slice(0, 10).map(item => ({
-                    name: item.item_name,
+                setChartData(servedItems.slice(0, 8).map(item => ({
+                    name: item.item_name.substring(0, 15),
                     quantity: item.total_quantity,
                     revenue: item.total_revenue
                 })))
                 const notSold = result.filter(r => r.total_quantity === 0)
-                setAlerts(notSold.length > 5 ? [`⚠️ ${notSold.length} menu items haven't sold - consider removing or promoting them`] : [])
+                setAlerts(notSold.length > 5 ? [`⚠️ ${notSold.length} items not sold`] : [])
                 setStats([
                     { label: 'Total Items', value: result.length, color: '#3b82f6' },
                     { label: 'Items Sold', value: servedItems.length, color: '#10b981', trend: comp.change },
-                    { label: 'Not Sold', value: notSold.length, color: '#ef4444', subtext: 'Need attention' }
+                    { label: 'Not Sold', value: notSold.length, color: '#ef4444' }
                 ])
             } else if (category === 'inventory') {
                 const { result } = await loadInventoryUsage()
                 const lowStock = result.filter(i => i.status === 'Low Stock')
                 setData(result)
                 setComparison(null)
-                setChartData(result.slice(0, 10).map(item => ({
-                    name: item.item_name,
+                setChartData(result.slice(0, 8).map(item => ({
+                    name: item.item_name.substring(0, 12),
                     value: item.stock_value
                 })))
-                setAlerts(lowStock.length > 0 ? [`🔴 ${lowStock.length} items are LOW STOCK - reorder immediately!`, ...lowStock.map(item => `  → ${item.item_name}: ${item.current_stock} ${item.unit}`)] : [])
+                setAlerts(lowStock.length > 0 ? [`🔴 ${lowStock.length} items LOW STOCK`] : [])
                 setStats([
                     { label: 'Total Items', value: result.length, color: '#3b82f6' },
-                    { label: 'Low Stock', value: lowStock.length, color: '#ef4444', subtext: 'Need reorder' },
+                    { label: 'Low Stock', value: lowStock.length, color: '#ef4444' },
                     { label: 'Stock Value', value: `PKR ${result.reduce((s, i) => s + i.stock_value, 0).toLocaleString()}`, color: '#10b981' }
                 ])
             } else {
@@ -85,17 +85,17 @@ export default function HistoryPage() {
                 setData(profitData)
                 setComparison(comp)
                 setChartData(profitData.map(item => ({
-                    category: item.category,
+                    category: item.category.substring(0, 15),
                     amount: item.amount
                 })))
                 const newAlerts = []
-                if (netProfit < 0) newAlerts.push('🔴 ALERT: Business is running at a LOSS! Take immediate action.')
-                if (comp.trend === 'down' && comp.change > 20) newAlerts.push(`⚠️ Revenue dropped by ${comp.change.toFixed(1)}% compared to previous period`)
+                if (netProfit < 0) newAlerts.push('🔴 Business running at LOSS')
+                if (comp.trend === 'down' && comp.change > 20) newAlerts.push(`⚠️ Revenue dropped ${comp.change.toFixed(1)}%`)
                 setAlerts(newAlerts)
                 setStats([
                     { label: 'Revenue', value: `PKR ${profitData[0].amount.toLocaleString()}`, color: '#10b981', trend: comp.change },
                     { label: 'Costs', value: `PKR ${(profitData[2].amount + profitData[3].amount).toLocaleString()}`, color: '#ef4444' },
-                    { label: netProfit >= 0 ? 'Profit' : 'Loss', value: `PKR ${Math.abs(netProfit).toLocaleString()}`, color: netProfit >= 0 ? '#10b981' : '#ef4444', subtext: netProfit >= 0 ? '✅ Positive' : '⚠️ Negative' }
+                    { label: netProfit >= 0 ? 'Profit' : 'Loss', value: `PKR ${Math.abs(netProfit).toLocaleString()}`, color: netProfit >= 0 ? '#10b981' : '#ef4444' }
                 ])
             }
         } catch (error) {
@@ -130,13 +130,13 @@ export default function HistoryPage() {
                                 {r.waiter_name?.[0] || '?'}
                             </div>
                         )}
-                        <span className="font-medium">{r.waiter_name || 'N/A'}</span>
+                        <span className="font-medium text-[var(--fg)]">{r.waiter_name || 'N/A'}</span>
                     </div>
                 )
             },
-            { key: 'total_orders', label: 'Orders', render: (r: any) => r.total_orders || 0 },
-            { key: 'total_items_served', label: 'Items Served', render: (r: any) => r.total_items_served || 0 },
-            { key: 'top_item', label: 'Top Item', render: (r: any) => r.top_item || 'None' },
+            { key: 'total_orders', label: 'Orders', render: (r: any) => <span className="text-[var(--fg)]">{r.total_orders || 0}</span> },
+            { key: 'total_items_served', label: 'Items', render: (r: any) => <span className="text-[var(--fg)]">{r.total_items_served || 0}</span> },
+            { key: 'top_item', label: 'Top Item', render: (r: any) => <span className="text-[var(--fg)]">{r.top_item || 'None'}</span> },
             {
                 key: 'total_revenue',
                 label: 'Revenue',
@@ -145,9 +145,9 @@ export default function HistoryPage() {
             }
         ],
         menu: [
-            { key: 'item_name', label: 'Menu Item', render: (r: any) => r.item_name || 'N/A' },
-            { key: 'price', label: 'Price', render: (r: any) => `PKR ${(r.price || 0).toLocaleString()}` },
-            { key: 'total_quantity', label: 'Sold', render: (r: any) => r.total_quantity || 0 },
+            { key: 'item_name', label: 'Item', render: (r: any) => <span className="text-[var(--fg)]">{r.item_name || 'N/A'}</span> },
+            { key: 'price', label: 'Price', render: (r: any) => <span className="text-[var(--fg)]">PKR {(r.price || 0).toLocaleString()}</span> },
+            { key: 'total_quantity', label: 'Sold', render: (r: any) => <span className="text-[var(--fg)]">{r.total_quantity || 0}</span> },
             {
                 key: 'available',
                 label: 'Status',
@@ -165,9 +165,9 @@ export default function HistoryPage() {
             }
         ],
         inventory: [
-            { key: 'item_name', label: 'Item', render: (r: any) => r.item_name || 'N/A' },
-            { key: 'current_stock', label: 'Stock', render: (r: any) => `${r.current_stock || 0} ${r.unit || ''}` },
-            { key: 'purchase_price', label: 'Price/Unit', render: (r: any) => `PKR ${(r.purchase_price || 0).toLocaleString()}` },
+            { key: 'item_name', label: 'Item', render: (r: any) => <span className="text-[var(--fg)]">{r.item_name || 'N/A'}</span> },
+            { key: 'current_stock', label: 'Stock', render: (r: any) => <span className="text-[var(--fg)]">{r.current_stock || 0} {r.unit || ''}</span> },
+            { key: 'purchase_price', label: 'Price/Unit', render: (r: any) => <span className="text-[var(--fg)]">PKR {(r.purchase_price || 0).toLocaleString()}</span> },
             {
                 key: 'status',
                 label: 'Status',
@@ -181,11 +181,11 @@ export default function HistoryPage() {
                 key: 'stock_value',
                 label: 'Value',
                 align: 'right' as const,
-                render: (r: any) => <span className="font-bold">PKR {(r.stock_value || 0).toLocaleString()}</span>
+                render: (r: any) => <span className="font-bold text-[var(--fg)]">PKR {(r.stock_value || 0).toLocaleString()}</span>
             }
         ],
         profit: [
-            { key: 'category', label: 'Category', render: (r: any) => r.category || 'N/A' },
+            { key: 'category', label: 'Category', render: (r: any) => <span className="text-[var(--fg)]">{r.category || 'N/A'}</span> },
             {
                 key: 'type',
                 label: 'Type',
@@ -218,10 +218,26 @@ export default function HistoryPage() {
 
     const sidebarItems = useSidebarItems([
         { id: 'profit', label: 'Profit/Loss', icon: '💰', count: data.length },
-        { id: 'waiters', label: 'Waiter Reports', icon: '👤', count: data.length },
-        { id: 'menu', label: 'Menu Analysis', icon: '🍽️', count: data.length },
-        { id: 'inventory', label: 'Stock Usage', icon: '📦', count: data.length }
+        { id: 'waiters', label: 'Waiters', icon: '👤', count: data.length },
+        { id: 'menu', label: 'Menu', icon: '🍽️', count: data.length },
+        { id: 'inventory', label: 'Inventory', icon: '📦', count: data.length }
     ], category, (id: string) => setCategory(id as Category))
+
+    const CustomTooltip = ({ active, payload }: any) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 shadow-lg">
+                    <p className="text-sm font-medium text-[var(--fg)]">{payload[0].name}</p>
+                    {payload.map((entry: any, index: number) => (
+                        <p key={index} className="text-xs text-[var(--fg)]">
+                            {entry.dataKey}: {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}
+                        </p>
+                    ))}
+                </div>
+            )
+        }
+        return null
+    }
 
     return (
         <ErrorBoundary>
@@ -230,24 +246,18 @@ export default function HistoryPage() {
 
                 <div className="min-h-screen bg-[var(--bg)] lg:ml-64">
                     <PageHeader
-                        title="Business Analytics"
-                        subtitle="Detailed performance & financial analysis"
+                        title="History & Analytics"
+                        subtitle="Business performance analysis"
                         action={
                             <div className="flex gap-2">
-                                <select
-                                    value={dateRange}
-                                    onChange={(e) => setDateRange(e.target.value as DateRange)}
-                                    className="px-3 py-2 bg-[var(--card)] border border-[var(--border)] rounded-lg text-sm"
-                                >
+                                <select value={dateRange} onChange={(e) => setDateRange(e.target.value as DateRange)} className="px-2 sm:px-3 py-2 bg-[var(--card)] border border-[var(--border)] rounded-lg text-xs sm:text-sm text-[var(--fg)]">
                                     <option value="today">Today</option>
-                                    <option value="week">This Week</option>
-                                    <option value="month">This Month</option>
+                                    <option value="week">Week</option>
+                                    <option value="month">Month</option>
+                                    <option value="year">Year</option>
                                 </select>
-                                <button
-                                    onClick={exportCSV}
-                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm active:scale-95"
-                                >
-                                    <Download className="w-4 h-4" />
+                                <button onClick={exportCSV} className="px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-xs sm:text-sm active:scale-95">
+                                    <Download className="w-3 h-3 sm:w-4 sm:h-4" />
                                     <span className="hidden sm:inline">CSV</span>
                                 </button>
                             </div>
@@ -255,42 +265,36 @@ export default function HistoryPage() {
                     />
 
                     <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
-                        {/* Comparison Card */}
                         {comparison && (
-                            <div className={`p-4 rounded-lg border-2 ${comparison.trend === 'up' ? 'bg-green-50 dark:bg-green-900/20 border-green-600' : comparison.trend === 'down' ? 'bg-red-50 dark:bg-red-900/20 border-red-600' : 'bg-gray-50 dark:bg-gray-900/20 border-gray-600'}`}>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        {comparison.trend === 'up' ? (
-                                            <ArrowUp className="w-6 h-6 text-green-600" />
-                                        ) : comparison.trend === 'down' ? (
-                                            <ArrowDown className="w-6 h-6 text-red-600" />
-                                        ) : (
-                                            <Minus className="w-6 h-6 text-gray-600" />
-                                        )}
+                            <div className={`p-3 sm:p-4 rounded-lg border-2 ${comparison.trend === 'up' ? 'bg-green-50 dark:bg-green-900/20 border-green-600' : comparison.trend === 'down' ? 'bg-red-50 dark:bg-red-900/20 border-red-600' : 'bg-gray-50 dark:bg-gray-900/20 border-gray-600'}`}>
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2 sm:gap-3">
+                                        {comparison.trend === 'up' ? <ArrowUp className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" /> : comparison.trend === 'down' ? <ArrowDown className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" /> : <Minus className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600" />}
                                         <div>
-                                            <p className="text-sm font-medium text-[var(--muted)]">vs Previous Period</p>
-                                            <p className={`text-2xl font-bold ${comparison.trend === 'up' ? 'text-green-600' : comparison.trend === 'down' ? 'text-red-600' : 'text-gray-600'}`}>
-                                                {comparison.change.toFixed(1)}% {comparison.trend === 'up' ? 'increase' : comparison.trend === 'down' ? 'decrease' : 'no change'}
+                                            <p className="text-xs sm:text-sm font-medium text-[var(--muted)]">vs Previous Period</p>
+                                            <p className={`text-xl sm:text-2xl font-bold ${comparison.trend === 'up' ? 'text-green-600' : comparison.trend === 'down' ? 'text-red-600' : 'text-gray-600'}`}>
+                                                {comparison.change.toFixed(1)}%
                                             </p>
                                         </div>
+                                    </div>
+                                    <div className={`px-3 sm:px-4 py-2 rounded-lg font-bold text-sm sm:text-base ${comparison.trend === 'up' ? 'bg-green-600 text-white' : comparison.trend === 'down' ? 'bg-red-600 text-white' : 'bg-gray-600 text-white'}`}>
+                                        {comparison.trend === 'up' ? '↑' : comparison.trend === 'down' ? '↓' : '→'}
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* Alerts */}
                         {alerts.length > 0 && (
-                            <div className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-600 rounded-lg p-4">
-                                <div className="flex items-start gap-3">
-                                    <Bell className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
-                                    <div className="flex-1">
-                                        <h3 className="font-bold text-yellow-900 dark:text-yellow-100 mb-2 flex items-center gap-2">
-                                            Important Alerts
-                                            <span className="px-2 py-0.5 bg-yellow-600 text-white rounded-full text-xs">{alerts.length}</span>
+                            <div className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-600 rounded-lg p-3 sm:p-4">
+                                <div className="flex items-start gap-2 sm:gap-3">
+                                    <Bell className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600 flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-bold text-[var(--fg)] mb-2 text-sm sm:text-base">
+                                            Alerts ({alerts.length})
                                         </h3>
                                         <ul className="space-y-1">
                                             {alerts.map((alert, idx) => (
-                                                <li key={idx} className="text-sm text-yellow-800 dark:text-yellow-200">{alert}</li>
+                                                <li key={idx} className="text-xs sm:text-sm text-[var(--fg)] break-words">{alert}</li>
                                             ))}
                                         </ul>
                                     </div>
@@ -298,111 +302,68 @@ export default function HistoryPage() {
                             </div>
                         )}
 
-                        {/* Stats Grid */}
                         <ResponsiveStatsGrid stats={stats} />
 
-                        {/* Charts Section */}
                         {chartData.length > 0 && (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                                {/* Bar Chart */}
-                                <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 sm:p-6">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <BarChart3 className="w-5 h-5 text-blue-600" />
-                                        <h3 className="font-bold text-[var(--fg)]">
-                                            {category === 'waiters' ? 'Revenue by Waiter' :
-                                                category === 'menu' ? 'Top Selling Items' :
-                                                    category === 'profit' ? 'Financial Breakdown' : 'Stock Value'}
-                                        </h3>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
+                                <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3 sm:p-4 lg:p-6">
+                                    <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                                        <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                                        <h3 className="font-bold text-[var(--fg)] text-sm sm:text-base">Performance</h3>
                                     </div>
-                                    <ResponsiveContainer width="100%" height={300}>
-                                        <BarChart data={chartData}>
+                                    <ResponsiveContainer width="100%" height={250}>
+                                        <BarChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 60 }}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                                             <XAxis
                                                 dataKey="name"
                                                 stroke="var(--muted)"
-                                                tick={{ fill: 'var(--muted)' }}
+                                                tick={{ fill: 'var(--fg)', fontSize: 10 }}
                                                 angle={-45}
                                                 textAnchor="end"
-                                                height={80}
+                                                height={60}
+                                                interval={0}
                                             />
-                                            <YAxis stroke="var(--muted)" tick={{ fill: 'var(--muted)' }} />
-                                            <Tooltip
-                                                contentStyle={{
-                                                    backgroundColor: 'var(--card)',
-                                                    border: '1px solid var(--border)',
-                                                    borderRadius: '8px',
-                                                    color: 'var(--fg)'
-                                                }}
-                                            />
-                                            <Bar
-                                                dataKey={
-                                                    category === 'waiters' ? 'revenue' :
-                                                        category === 'menu' ? 'quantity' :
-                                                            category === 'profit' ? 'amount' :
-                                                                'value'
-                                                }
-                                                fill="#3b82f6"
-                                                radius={[8, 8, 0, 0]}
-                                            />
+                                            <YAxis stroke="var(--muted)" tick={{ fill: 'var(--fg)', fontSize: 10 }} />
+                                            <Tooltip content={<CustomTooltip />} />
+                                            <Bar dataKey={category === 'waiters' ? 'revenue' : category === 'menu' ? 'quantity' : category === 'profit' ? 'amount' : 'value'} fill="#3b82f6" radius={[6, 6, 0, 0]} />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
 
-                                {/* Pie Chart - FIXED */}
-                                <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 sm:p-6">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <PieIcon className="w-5 h-5 text-green-600" />
-                                        <h3 className="font-bold text-[var(--fg)]">Distribution</h3>
-                                    </div>
-                                    <ResponsiveContainer width="100%" height={300}>
+                                <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3 sm:p-4 lg:p-6">
+                                    <h3 className="font-bold text-[var(--fg)] mb-3 sm:mb-4 text-sm sm:text-base">Distribution</h3>
+                                    <ResponsiveContainer width="100%" height={250}>
                                         <PieChart>
                                             <Pie
                                                 data={chartData.slice(0, 6)}
                                                 cx="50%"
                                                 cy="50%"
-                                                labelLine={false}
-                                                label={(entry: any) => {
-                                                    const value = entry.value || entry.revenue || entry.amount || entry.quantity || 0
-                                                    const total = chartData.reduce((s, d) => s + (d.value || d.revenue || d.amount || d.quantity || 0), 0)
-                                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(0) : 0
-                                                    return `${entry.name}: ${percentage}%`
-                                                }}
-                                                outerRadius={80}
+                                                labelLine={true}
+                                                label={false}
+                                                outerRadius={60}
                                                 fill="#8884d8"
-                                                dataKey={
-                                                    category === 'waiters' ? 'revenue' :
-                                                        category === 'menu' ? 'quantity' :
-                                                            category === 'profit' ? 'amount' :
-                                                                'value'
-                                                }
+                                                dataKey={category === 'waiters' ? 'revenue' : category === 'menu' ? 'quantity' : category === 'profit' ? 'amount' : 'value'}
                                             >
-                                                {chartData.slice(0, 6).map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                ))}
+                                                {chartData.slice(0, 6).map((_, index) => (<Cell key={`cell-${index}`} fill={COLORS[index]} />))}
                                             </Pie>
-                                            <Tooltip
-                                                contentStyle={{
-                                                    backgroundColor: 'var(--card)',
-                                                    border: '1px solid var(--border)',
-                                                    borderRadius: '8px',
-                                                    color: 'var(--fg)'
+                                            <Tooltip content={<CustomTooltip />} />
+                                            <Legend
+                                                wrapperStyle={{ fontSize: '10px' }}
+                                                iconSize={8}
+                                                formatter={(value, entry: any) => {
+                                                    const val = entry.payload.value || entry.payload.revenue || entry.payload.amount || entry.payload.quantity || 0
+                                                    const tot = chartData.slice(0, 6).reduce((s, d) => s + (d.value || d.revenue || d.amount || d.quantity || 0), 0)
+                                                    const pct = tot > 0 ? ((val / tot) * 100).toFixed(0) : 0
+                                                    return `${value.substring(0, 12)} (${pct}%)`
                                                 }}
                                             />
-                                            <Legend />
                                         </PieChart>
                                     </ResponsiveContainer>
                                 </div>
                             </div>
                         )}
 
-                        {/* Data Table */}
-                        <UniversalDataTable
-                            columns={columns[category]}
-                            data={data}
-                            loading={loading}
-                            searchable
-                            searchPlaceholder={`Search ${category}...`}
-                        />
+                        <UniversalDataTable columns={columns[category]} data={data} loading={loading} searchable searchPlaceholder={`Search ${category}...`} />
                     </div>
                 </div>
             </>

@@ -1,3 +1,4 @@
+// src/lib/hooks/useAdminAuth.ts
 "use client"
 
 import { useState, useEffect } from 'react'
@@ -10,15 +11,15 @@ export function useAdminAuth() {
     const pathname = usePathname()
 
     useEffect(() => {
-        // ✅ FIX: Check auth only after component mounts
         const checkAuth = () => {
+            const isLoginPage = pathname.includes('/login')
+
+            // Check if authenticated in this session
             const auth = sessionStorage.getItem('admin_auth') === 'true'
             setIsAuthenticated(auth)
             setLoading(false)
 
-            // ✅ FIX: Don't redirect if already on login page
-            const isLoginPage = pathname.includes('/login')
-
+            // Redirect to login if not authenticated and not on login page
             if (!auth && !isLoginPage) {
                 router.push('/admin/login')
             }

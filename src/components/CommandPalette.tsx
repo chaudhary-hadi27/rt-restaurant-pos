@@ -9,7 +9,7 @@ const ACTIONS = [
     { id: 'new-order', label: 'Start New Order', icon: Plus, href: '/', category: 'restaurant', keywords: ['order', 'new'] },
     { id: 'view-tables', label: 'View Tables', icon: LayoutGrid, href: '/tables', category: 'restaurant', keywords: ['table'] },
     { id: 'view-orders', label: 'View Orders', icon: ShoppingBag, href: '/orders', category: 'restaurant', keywords: ['order'] },
-    { id: 'manage-attendance', label: 'Attendance', icon: Timer, href: '/attendance', category: 'restaurant', keywords: ['shift'] },
+    { id: 'restaurant-attendance', label: 'Attendance', icon: Timer, href: '/attendance', category: 'restaurant', keywords: ['shift'] },
 
     // Admin
     { id: 'admin-dashboard', label: 'Admin Dashboard', icon: Shield, href: '/admin', category: 'admin', keywords: ['admin'] },
@@ -17,15 +17,12 @@ const ACTIONS = [
     { id: 'manage-menu', label: 'Menu', icon: UtensilsCrossed, href: '/admin/menu', category: 'admin', keywords: ['menu'] },
     { id: 'manage-waiters', label: 'Staff', icon: Users, href: '/admin/waiters', category: 'admin', keywords: ['staff', 'waiter'] },
     { id: 'manage-tables-admin', label: 'Tables', icon: LayoutGrid, href: '/admin/tables', category: 'admin', keywords: ['table'] },
-    { id: 'manage-attendance', label: 'Attendance', icon: Timer, href: '/admin/attendance', category: 'admin', keywords: ['shift'] },
+    { id: 'admin-attendance', label: 'Attendance', icon: Timer, href: '/admin/attendance', category: 'admin', keywords: ['shift'] },
     { id: 'view-history', label: 'History', icon: History, href: '/admin/history', category: 'admin', keywords: ['reports', 'analytics'] },
-    { id: 'admin-settings', label: 'Settings', icon: Settings, href: '/admin/settings', category: 'admin', keywords: ['settings', 'password'] },
+    { id: 'settings', label: 'Settings', icon: Settings, href: '/admin/settings', category: 'admin', keywords: ['settings', 'password'] },
 
-
-    // Quick
-    { id: 'manage-users', label: 'Admin Users', icon: UserPlus, href: '/admin/users', category: 'actions', keywords: ['admin', 'users'] },
-    { id: 'admin-settings', label: 'Settings', icon: Settings, href: '/admin/settings', category: 'actions', keywords: ['settings'] },
-    { id: 'change-password', label: 'Password', icon: Key, href: '/admin/settings/password', category: 'actions', keywords: ['password'] },
+    // Quick Actions
+    { id: 'change-password', label: 'Password', icon: Key, href: '/admin/settings', category: 'actions', keywords: ['password'] },
 ]
 
 export default function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
