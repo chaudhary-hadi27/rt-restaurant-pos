@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { offlineManager } from '@/lib/db/offlineManager'
+import { STORES } from '@/lib/db/schema'
 
 export function useSupabase<T = any>(
     table: string,
@@ -13,60 +15,134 @@ export function useSupabase<T = any>(
     const [data, setData] = useState<T[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [isOffline, setIsOffline] = useState(!navigator.onLine)
     const supabase = createClient()
+
+    // ✅ Map table names to IndexedDB stores
+    const getStoreName = (tableName: string) => {
+        const map: Record<string, string> = {
+            'menu_items': STORES.MENU_ITEMS,
+            'menu_categories': STORES.MENU_CATEGORIES,
+            'restaurant_tables': 'restaurant_tables',
+            'waiters': 'waiters'
+        }
+        return map[tableName] || tableName
+    }
 
     const load = async () => {
         setLoading(true)
-        let query = supabase.from(table).select(options?.select || '*')
+        setError(null)
 
-        if (options?.filter) {
-            Object.entries(options.filter).forEach(([key, value]) => {
-                query = query.eq(key, value)
-            })
+        try {
+            // ✅ Try online first
+            if (navigator.onLine) {
+                let query = supabase.from(table).select(options?.select || '*')
+
+                if (options?.filter) {
+                    Object.entries(options.filter).forEach(([key, value]) => {
+                        query = query.eq(key, value)
+                    })
+                }
+
+                if (options?.order) {
+                    query = query.order(options.order.column, { ascending: options.order.ascending ?? true })
+                }
+
+                const { data: result, error: err } = await query
+
+                if (err) throw err
+                setData(result as T[])
+                setIsOffline(false)
+            } else {
+                throw new Error('Offline')
+            }
+        } catch (err: any) {
+            console.log(`📴 Offline mode for ${table}`)
+
+            // ✅ Fallback to IndexedDB
+            try {
+                const storeName = getStoreName(table)
+                const offlineData = await offlineManager.getOfflineData(storeName) as T[]
+
+                // Apply filters
+                let filtered = offlineData
+                if (options?.filter) {
+                    filtered = offlineData.filter(item =>
+                        Object.entries(options.filter!).every(([key, value]) =>
+                            (item as any)[key] === value
+                        )
+                    )
+                }
+
+                // Apply sorting
+                if (options?.order) {
+                    filtered.sort((a, b) => {
+                        const aVal = (a as any)[options.order!.column]
+                        const bVal = (b as any)[options.order!.column]
+                        const direction = options.order!.ascending ?? true ? 1 : -1
+                        return aVal < bVal ? -direction : aVal > bVal ? direction : 0
+                    })
+                }
+
+                setData(filtered)
+                setIsOffline(true)
+                setError(null) // Clear error on successful offline load
+            } catch (offlineErr) {
+                console.error('Offline load failed:', offlineErr)
+                setError('No offline data available')
+                setData([])
+            }
+        } finally {
+            setLoading(false)
         }
-
-        if (options?.order) {
-            query = query.order(options.order.column, {ascending: options.order.ascending ?? true})
-        }
-
-        const {data: result, error: err} = await query
-        if (err) setError(err.message)
-        else setData(result || [])
-        setLoading(false)
     }
 
     useEffect(() => {
         load()
 
-        if (options?.realtime) {
-            const channel = supabase
-                .channel(`${table}_changes`)
-                .on('postgres_changes', {event: '*', schema: 'public', table}, load)
-                .subscribe()
+        // ✅ Network status listener
+        const handleOnline = () => {
+            setIsOffline(false)
+            load()
+        }
+        const handleOffline = () => setIsOffline(true)
 
-            return () => {
-                supabase.removeChannel(channel)
-            }
+        window.addEventListener('online', handleOnline)
+        window.addEventListener('offline', handleOffline)
+
+        // ✅ Realtime only when online
+        let channel: any
+        if (options?.realtime && navigator.onLine) {
+            channel = supabase
+                .channel(`${table}_changes`)
+                .on('postgres_changes', { event: '*', schema: 'public', table }, load)
+                .subscribe()
+        }
+
+        return () => {
+            window.removeEventListener('online', handleOnline)
+            window.removeEventListener('offline', handleOffline)
+            if (channel) supabase.removeChannel(channel)
         }
     }, [table, JSON.stringify(options)])
 
     const insert = async (values: Partial<T>) => {
-        const {error} = await supabase.from(table).insert(values)
+        const { error } = await supabase.from(table).insert(values)
         if (!error) load()
-        return {error}
+        return { error }
     }
 
     const update = async (id: string, values: Partial<T>) => {
-        const {error} = await supabase.from(table).update(values).eq('id', id)
+        const { error } = await supabase.from(table).update(values).eq('id', id)
         if (!error) load()
-        return {error}
+        return { error }
     }
 
     const remove = async (id: string) => {
-        const {error} = await supabase.from(table).delete().eq('id', id)
+        const { error } = await supabase.from(table).delete().eq('id', id)
         if (!error) load()
-        return {error}
+        return { error }
     }
 
-    return {data, loading, error, refresh: load, insert, update, remove}
+    return { data, loading, error, isOffline, refresh: load, insert, update, remove }
 }

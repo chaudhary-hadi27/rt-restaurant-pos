@@ -27,20 +27,45 @@ export default function ResponsiveStatsGrid({ stats }: { stats: StatCard[] }) {
                     return stat.icon
                 }
 
+                // ✅ FIX: Convert value to string, handle NaN/undefined
+                const displayValue = stat.value !== undefined && stat.value !== null
+                    ? (typeof stat.value === 'number' && isNaN(stat.value) ? '0' : String(stat.value))
+                    : '0'
+
                 return (
-                    <button key={idx} onClick={stat.onClick} disabled={!stat.onClick}
-                            className={`p-3 sm:p-4 lg:p-5 rounded-lg border transition-all text-left active:scale-95 ${stat.active ? 'bg-blue-600/10 border-blue-600 shadow-lg' : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--fg)]'} ${stat.onClick ? 'cursor-pointer' : 'cursor-default'}`}>
+                    <button
+                        key={idx}
+                        onClick={stat.onClick}
+                        disabled={!stat.onClick}
+                        className={`p-3 sm:p-4 lg:p-5 rounded-lg border transition-all text-left active:scale-95 ${
+                            stat.active
+                                ? 'bg-blue-600/10 border-blue-600 shadow-lg'
+                                : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--fg)]'
+                        } ${stat.onClick ? 'cursor-pointer' : 'cursor-default'}`}
+                    >
                         {stat.icon && <div className="mb-2 sm:mb-3">{renderIcon()}</div>}
-                        <p className="text-xs sm:text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-1.5 sm:mb-2 line-clamp-1">{stat.label}</p>
+                        <p className="text-xs sm:text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-1.5 sm:mb-2 line-clamp-1">
+                            {stat.label}
+                        </p>
                         <div className="flex items-end justify-between gap-2">
-                            <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-[var(--fg)] truncate">{stat.value}</p>
-                            {stat.trend !== undefined && (
-                                <span className={`text-xs font-semibold px-1.5 sm:px-2 py-0.5 rounded ${stat.trend > 0 ? 'bg-green-500/20 text-green-600' : 'bg-red-500/20 text-red-600'}`}>
-                                    {stat.trend > 0 ? '↑' : '↓'} {Math.abs(stat.trend)}%
+                            <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-[var(--fg)] truncate">
+                                {displayValue}
+                            </p>
+                            {stat.trend !== undefined && !isNaN(stat.trend) && (
+                                <span className={`text-xs font-semibold px-1.5 sm:px-2 py-0.5 rounded ${
+                                    stat.trend > 0
+                                        ? 'bg-green-500/20 text-green-600'
+                                        : 'bg-red-500/20 text-red-600'
+                                }`}>
+                                    {stat.trend > 0 ? '↑' : '↓'} {Math.abs(stat.trend).toFixed(1)}%
                                 </span>
                             )}
                         </div>
-                        {stat.subtext && <p className="text-xs text-[var(--muted)] mt-1.5 sm:mt-2 line-clamp-1">{stat.subtext}</p>}
+                        {stat.subtext && (
+                            <p className="text-xs text-[var(--muted)] mt-1.5 sm:mt-2 line-clamp-1">
+                                {stat.subtext}
+                            </p>
+                        )}
                     </button>
                 )
             })}
