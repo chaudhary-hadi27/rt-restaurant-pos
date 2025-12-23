@@ -1,10 +1,9 @@
 'use client'
 import { useState } from 'react'
-import { Key, Save, Eye, EyeOff, User } from 'lucide-react'
+import { Key, Save, Eye, EyeOff, User, Camera } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { PageHeader } from '@/components/ui/PageHeader'
 import ResponsiveInput from '@/components/ui/ResponsiveInput'
-import CloudinaryUpload from '@/components/ui/CloudinaryUpload'
 import { useAdminAuth } from '@/lib/hooks/useAdminAuth'
 
 export default function SettingsPage() {
@@ -12,11 +11,92 @@ export default function SettingsPage() {
     const [form, setForm] = useState({ current: '', new: '', confirm: '' })
     const [profileForm, setProfileForm] = useState({
         name: profile?.name || '',
+        bio: profile?.bio || '',
         profile_pic: profile?.profile_pic || ''
     })
     const [loading, setLoading] = useState(false)
+    const [uploadingImage, setUploadingImage] = useState(false)
     const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false })
     const toast = useToast()
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        if (!file.type.startsWith('image/')) {
+            toast.add('error', '❌ Please upload an image file')
+            return
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            toast.add('error', '❌ Image must be less than 5MB')
+            return
+        }
+
+        setUploadingImage(true)
+
+        try {
+            const resizedImage = await resizeImage(file, 400, 400)
+
+            const formData = new FormData()
+            formData.append('file', resizedImage)
+            formData.append('folder', 'admin-profiles')
+
+            const response = await fetch('/api/upload/cloudinary', {
+                method: 'POST',
+                body: formData
+            })
+
+            if (!response.ok) throw new Error('Upload failed')
+
+            const { url } = await response.json()
+            setProfileForm({ ...profileForm, profile_pic: url })
+            toast.add('success', '✅ Image uploaded!')
+        } catch (error) {
+            toast.add('error', '❌ Upload failed')
+        } finally {
+            setUploadingImage(false)
+        }
+    }
+
+    const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<Blob> => {
+        return new Promise((resolve, reject) => {
+            const img = new Image()
+            img.src = URL.createObjectURL(file)
+
+            img.onload = () => {
+                const canvas = document.createElement('canvas')
+                let width = img.width
+                let height = img.height
+
+                const size = Math.min(width, height)
+                const startX = (width - size) / 2
+                const startY = (height - size) / 2
+
+                canvas.width = maxWidth
+                canvas.height = maxHeight
+
+                const ctx = canvas.getContext('2d')
+                if (!ctx) {
+                    reject(new Error('Canvas not supported'))
+                    return
+                }
+
+                ctx.drawImage(img, startX, startY, size, size, 0, 0, maxWidth, maxHeight)
+
+                canvas.toBlob(
+                    (blob) => {
+                        if (blob) resolve(blob)
+                        else reject(new Error('Resize failed'))
+                    },
+                    'image/jpeg',
+                    0.9
+                )
+            }
+
+            img.onerror = () => reject(new Error('Image load failed'))
+        })
+    }
 
     const handleProfileUpdate = async () => {
         if (!profileForm.name || profileForm.name.trim().length < 2) {
@@ -95,6 +175,57 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium text-[var(--fg)] mb-3">
+                            Profile Picture
+                        </label>
+                        <div className="flex items-center gap-6">
+                            <div className="relative group">
+                                {profileForm.profile_pic ? (
+                                    <img
+                                        src={profileForm.profile_pic}
+                                        alt="Profile"
+                                        className="w-24 h-24 rounded-full object-cover border-4 border-blue-600 shadow-lg"
+                                    />
+                                ) : (
+                                    <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                                        {profileForm.name.charAt(0).toUpperCase() || 'A'}
+                                    </div>
+                                )}
+                                {uploadingImage && (
+                                    <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                                        <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin" />
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex-1">
+                                <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium text-sm active:scale-95">
+                                    <Camera className="w-4 h-4" />
+                                    <span>{profileForm.profile_pic ? 'Change Photo' : 'Upload Photo'}</span>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleImageUpload}
+                                        disabled={uploadingImage}
+                                        className="hidden"
+                                    />
+                                </label>
+                                <p className="text-xs text-[var(--muted)] mt-2">
+                                    Square image, max 5MB. Auto-resized to 400x400px
+                                </p>
+                                {profileForm.profile_pic && (
+                                    <button
+                                        onClick={() => setProfileForm({ ...profileForm, profile_pic: '' })}
+                                        className="text-xs text-red-600 hover:text-red-700 mt-2"
+                                    >
+                                        Remove Photo
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="space-y-4">
                         <ResponsiveInput
                             label="Name"
@@ -104,15 +235,26 @@ export default function SettingsPage() {
                             required
                         />
 
-                        <CloudinaryUpload
-                            value={profileForm.profile_pic}
-                            onChange={url => setProfileForm({ ...profileForm, profile_pic: url })}
-                            folder="admin-profiles"
-                        />
+                        <div>
+                            <label className="block text-sm font-medium text-[var(--fg)] mb-2">
+                                Bio <span className="text-xs text-[var(--muted)]">(Optional)</span>
+                            </label>
+                            <textarea
+                                value={profileForm.bio}
+                                onChange={e => setProfileForm({ ...profileForm, bio: e.target.value })}
+                                placeholder="Tell us about yourself..."
+                                rows={3}
+                                maxLength={200}
+                                className="w-full px-4 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-blue-600 resize-none"
+                            />
+                            <p className="text-xs text-[var(--muted)] mt-1">
+                                {profileForm.bio.length}/200 characters
+                            </p>
+                        </div>
 
                         <button
                             onClick={handleProfileUpdate}
-                            disabled={loading}
+                            disabled={loading || uploadingImage}
                             className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                             {loading ? (
@@ -125,7 +267,7 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                {/* Password Section (existing code) */}
+                {/* ✅ FIXED: Password Section - No Icon Overlap */}
                 <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
                     <div className="flex items-center gap-3 mb-6">
                         <div className="w-12 h-12 bg-blue-600/10 rounded-lg flex items-center justify-center">
@@ -138,59 +280,74 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="space-y-4">
-                        <div className="relative">
-                            <ResponsiveInput
-                                label="Current Password"
-                                type={showPasswords.current ? 'text' : 'password'}
-                                value={form.current}
-                                onChange={e => setForm({ ...form, current: e.target.value })}
-                                placeholder="Enter current password"
-                                required
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
-                                className="absolute right-3 top-9 text-[var(--muted)]"
-                            >
-                                {showPasswords.current ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                            </button>
+                        {/* Current Password */}
+                        <div>
+                            <label className="block text-sm font-medium text-[var(--fg)] mb-2">
+                                Current Password <span className="text-red-600">*</span>
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type={showPasswords.current ? 'text' : 'password'}
+                                    value={form.current}
+                                    onChange={e => setForm({ ...form, current: e.target.value })}
+                                    placeholder="Enter current password"
+                                    className="w-full pl-4 pr-12 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[var(--muted)] hover:text-[var(--fg)]"
+                                >
+                                    {showPasswords.current ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                </button>
+                            </div>
                         </div>
 
-                        <div className="relative">
-                            <ResponsiveInput
-                                label="New Password"
-                                type={showPasswords.new ? 'text' : 'password'}
-                                value={form.new}
-                                onChange={e => setForm({ ...form, new: e.target.value })}
-                                placeholder="Enter new password (min 8 chars)"
-                                required
-                                hint="Must be at least 8 characters"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPasswords({ ...showPasswords, new: !showPasswords.new })}
-                                className="absolute right-3 top-9 text-[var(--muted)]"
-                            >
-                                {showPasswords.new ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                            </button>
+                        {/* New Password */}
+                        <div>
+                            <label className="block text-sm font-medium text-[var(--fg)] mb-2">
+                                New Password <span className="text-red-600">*</span>
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type={showPasswords.new ? 'text' : 'password'}
+                                    value={form.new}
+                                    onChange={e => setForm({ ...form, new: e.target.value })}
+                                    placeholder="Enter new password (min 8 chars)"
+                                    className="w-full pl-4 pr-12 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPasswords({ ...showPasswords, new: !showPasswords.new })}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[var(--muted)] hover:text-[var(--fg)]"
+                                >
+                                    {showPasswords.new ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                </button>
+                            </div>
+                            <p className="text-xs text-[var(--muted)] mt-1">Must be at least 8 characters</p>
                         </div>
 
-                        <div className="relative">
-                            <ResponsiveInput
-                                label="Confirm New Password"
-                                type={showPasswords.confirm ? 'text' : 'password'}
-                                value={form.confirm}
-                                onChange={e => setForm({ ...form, confirm: e.target.value })}
-                                placeholder="Re-enter new password"
-                                required
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPasswords({ ...showPasswords, confirm: !showPasswords.confirm })}
-                                className="absolute right-3 top-9 text-[var(--muted)]"
-                            >
-                                {showPasswords.confirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                            </button>
+                        {/* Confirm Password */}
+                        <div>
+                            <label className="block text-sm font-medium text-[var(--fg)] mb-2">
+                                Confirm New Password <span className="text-red-600">*</span>
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type={showPasswords.confirm ? 'text' : 'password'}
+                                    value={form.confirm}
+                                    onChange={e => setForm({ ...form, confirm: e.target.value })}
+                                    placeholder="Re-enter new password"
+                                    className="w-full pl-4 pr-12 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPasswords({ ...showPasswords, confirm: !showPasswords.confirm })}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[var(--muted)] hover:text-[var(--fg)]"
+                                >
+                                    {showPasswords.confirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                </button>
+                            </div>
                         </div>
 
                         <button

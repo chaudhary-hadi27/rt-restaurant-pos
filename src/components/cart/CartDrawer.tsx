@@ -1,11 +1,12 @@
-// src/components/cart/CartDrawer.tsx - THEME FIXED
+// src/components/cart/CartDrawer.tsx - SMART VERSION
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useCart } from '@/lib/store/cart-store'
-import { Plus, Minus, X, CheckCircle, Truck, Home, CreditCard, Banknote, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Minus, X, CheckCircle, Truck, Home, CreditCard, Banknote, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 import { useOrderManagement } from '@/lib/hooks'
 import ReceiptModal from '@/components/features/receipt/ReceiptGenerator'
+import { createClient } from '@/lib/supabase/client'
 
 interface CartDrawerProps {
     isOpen: boolean
@@ -23,10 +24,59 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
     const [showDetails, setShowDetails] = useState(false)
     const [details, setDetails] = useState({ customer_name: '', customer_phone: '', delivery_address: '', delivery_charges: 0 })
 
+    // 🔥 NEW: Table occupancy detection
+    const [tableWarning, setTableWarning] = useState<{ show: boolean; tableNumber: number; currentOrder?: any } | null>(null)
+    const [confirmAddMore, setConfirmAddMore] = useState(false)
+    const supabase = createClient()
+
+    // 🔥 Check table status when table is selected
+    useEffect(() => {
+        if (cart.tableId && orderType === 'dine-in') {
+            checkTableOccupancy(cart.tableId)
+        }
+    }, [cart.tableId, orderType])
+
+    const checkTableOccupancy = async (tableId: string) => {
+        const selectedTable = tables.find(t => t.id === tableId)
+        if (!selectedTable) return
+
+        if (selectedTable.status === 'occupied') {
+            // Get current order
+            const { data: existingOrder } = await supabase
+                .from('orders')
+                .select('id, total_amount, order_items(quantity, menu_items(name))')
+                .eq('table_id', tableId)
+                .eq('status', 'pending')
+                .single()
+
+            if (existingOrder) {
+                setTableWarning({
+                    show: true,
+                    tableNumber: selectedTable.table_number,
+                    currentOrder: existingOrder
+                })
+                setConfirmAddMore(false)
+            }
+        } else {
+            setTableWarning(null)
+            setConfirmAddMore(false)
+        }
+    }
+
+    const handleConfirmAddMore = () => {
+        setConfirmAddMore(true)
+        setTableWarning(null)
+    }
+
     const placeOrder = async () => {
         if (cart.items.length === 0) return
         if (orderType === 'dine-in' && (!cart.tableId || !cart.waiterId)) return
         if (orderType === 'delivery' && !paymentMethod) return
+
+        // 🔥 Check if adding to occupied table without confirmation
+        if (orderType === 'dine-in' && tableWarning?.show && !confirmAddMore) {
+            return
+        }
 
         const subtotal = cart.subtotal()
         const tax = cart.tax()
@@ -75,6 +125,8 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
 
             cart.clearCart()
             setDetails({ customer_name: '', customer_phone: '', delivery_address: '', delivery_charges: 0 })
+            setConfirmAddMore(false)
+            setTableWarning(null)
         }
     }
 
@@ -180,11 +232,52 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                                     <option value="">Select table</option>
                                     {tables.filter(t => t.status === 'available' || t.status === 'occupied').map(t => (
                                         <option key={t.id} value={t.id}>
-                                            Table {t.table_number} - {t.section}
+                                            Table {t.table_number} - {t.section} {t.status === 'occupied' ? '(Occupied ⚠️)' : ''}
                                         </option>
                                     ))}
                                 </select>
                             </div>
+
+                            {/* 🔥 TABLE OCCUPANCY WARNING */}
+                            {tableWarning?.show && (
+                                <div className="p-4 bg-yellow-500/10 border-2 border-yellow-600 rounded-lg">
+                                    <div className="flex items-start gap-3">
+                                        <AlertTriangle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
+                                        <div className="flex-1">
+                                            <h4 className="font-bold text-[var(--fg)] mb-2">⚠️ Table {tableWarning.tableNumber} is Occupied!</h4>
+                                            <p className="text-sm text-[var(--muted)] mb-3">
+                                                Current order: PKR {tableWarning.currentOrder?.total_amount.toLocaleString()}
+                                            </p>
+                                            <div className="bg-[var(--bg)] rounded-lg p-3 mb-3 max-h-32 overflow-y-auto">
+                                                <p className="text-xs font-semibold text-[var(--fg)] mb-2">Existing Items:</p>
+                                                {tableWarning.currentOrder?.order_items?.slice(0, 5).map((item: any, idx: number) => (
+                                                    <p key={idx} className="text-xs text-[var(--muted)]">
+                                                        • {item.quantity}x {item.menu_items.name}
+                                                    </p>
+                                                ))}
+                                            </div>
+                                            <p className="text-sm font-semibold text-yellow-600 mb-3">
+                                                Do you want to add {cart.items.length} more items to this table?
+                                            </p>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => { setTableWarning(null); cart.setTable('') }}
+                                                    className="flex-1 px-4 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--card)]"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    onClick={handleConfirmAddMore}
+                                                    className="flex-1 px-4 py-2 bg-yellow-600 text-white rounded-lg text-sm font-medium hover:bg-yellow-700"
+                                                >
+                                                    Yes, Add More
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div>
                                 <label className="block text-sm font-medium text-[var(--fg)] mb-2">
                                     Select Waiter <span className="text-red-600">*</span>
@@ -333,7 +426,7 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                         </div>
                         <button
                             onClick={placeOrder}
-                            disabled={loading || (orderType === 'dine-in' && (!cart.tableId || !cart.waiterId))}
+                            disabled={loading || (orderType === 'dine-in' && (!cart.tableId || !cart.waiterId || (tableWarning?.show && !confirmAddMore)))}
                             className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                         >
                             {loading ? (

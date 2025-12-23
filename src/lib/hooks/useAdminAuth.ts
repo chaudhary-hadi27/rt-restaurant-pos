@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs'
 
 type AdminProfile = {
     name: string
+    bio?: string
     profile_pic?: string
 }
 

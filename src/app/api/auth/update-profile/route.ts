@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: Request) {
     try {
-        const { name, profile_pic } = await request.json()
+        const { name, bio, profile_pic } = await request.json()
 
         if (!name || name.trim().length < 2) {
             return NextResponse.json({ error: 'Name must be at least 2 characters' }, { status: 400 })
@@ -14,6 +14,7 @@ export async function POST(request: Request) {
             .from('admin_config')
             .update({
                 name: name.trim(),
+                bio: bio?.trim() || null,
                 profile_pic: profile_pic || null,
                 updated_at: new Date().toISOString()
             })
@@ -23,7 +24,11 @@ export async function POST(request: Request) {
 
         return NextResponse.json({
             success: true,
-            profile: { name: name.trim(), profile_pic: profile_pic || null }
+            profile: {
+                name: name.trim(),
+                bio: bio?.trim() || null,
+                profile_pic: profile_pic || null
+            }
         })
     } catch (error: any) {
         return NextResponse.json({ error: error.message || 'Update failed' }, { status: 500 })
