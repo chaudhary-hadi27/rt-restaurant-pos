@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useAdminAuth } from '@/lib/hooks/useAdminAuth'
+import AdminProfileBadge from '@/components/ui/AdminProfileBadge'
+
 import Link from 'next/link'
 import {
     Package, Users, LayoutGrid, ShoppingBag, UtensilsCrossed,
@@ -146,20 +149,26 @@ export default function AdminDashboard() {
             <header className="sticky top-0 z-30 bg-[var(--card)] border-b border-[var(--border)] backdrop-blur-lg bg-opacity-80">
                 <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4 lg:py-5">
                     <div className="flex items-center justify-between gap-3">
-                        <div>
-                            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-[var(--fg)]">
-                                Dashboard
-                            </h1>
-                            <p className="text-xs sm:text-sm text-[var(--muted)] mt-1 flex items-center gap-2">
-                                <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
-                                {new Date().toLocaleDateString('en-US', {
-                                    weekday: 'long',
-                                    month: 'long',
-                                    day: 'numeric',
-                                    year: 'numeric'
-                                })}
-                            </p>
+                        <div className="flex items-center gap-3">
+                            {/* Profile Picture */}
+                            <AdminProfileBadge />
+
+                            <div>
+                                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-[var(--fg)]">
+                                    Dashboard
+                                </h1>
+                                <p className="text-xs sm:text-sm text-[var(--muted)] mt-1 flex items-center gap-2">
+                                    <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
+                                    {new Date().toLocaleDateString('en-US', {
+                                        weekday: 'long',
+                                        month: 'long',
+                                        day: 'numeric',
+                                        year: 'numeric'
+                                    })}
+                                </p>
+                            </div>
                         </div>
+
                         <button
                             onClick={load}
                             className="px-3 py-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:scale-95 transition-all shadow-lg text-sm sm:text-base font-medium"

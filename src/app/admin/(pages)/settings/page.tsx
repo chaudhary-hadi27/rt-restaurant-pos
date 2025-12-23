@@ -1,16 +1,49 @@
 'use client'
-
 import { useState } from 'react'
-import { Key, Save, Eye, EyeOff } from 'lucide-react'
+import { Key, Save, Eye, EyeOff, User } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { PageHeader } from '@/components/ui/PageHeader'
 import ResponsiveInput from '@/components/ui/ResponsiveInput'
+import CloudinaryUpload from '@/components/ui/CloudinaryUpload'
+import { useAdminAuth } from '@/lib/hooks/useAdminAuth'
 
 export default function SettingsPage() {
+    const { profile, updateProfile } = useAdminAuth()
     const [form, setForm] = useState({ current: '', new: '', confirm: '' })
+    const [profileForm, setProfileForm] = useState({
+        name: profile?.name || '',
+        profile_pic: profile?.profile_pic || ''
+    })
     const [loading, setLoading] = useState(false)
     const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false })
     const toast = useToast()
+
+    const handleProfileUpdate = async () => {
+        if (!profileForm.name || profileForm.name.trim().length < 2) {
+            return toast.add('error', 'Name must be at least 2 characters')
+        }
+
+        setLoading(true)
+        try {
+            const res = await fetch('/api/auth/update-profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(profileForm)
+            })
+
+            const data = await res.json()
+            if (res.ok) {
+                updateProfile(data.profile)
+                toast.add('success', '✅ Profile updated!')
+            } else {
+                toast.add('error', data.error || 'Failed to update')
+            }
+        } catch (error) {
+            toast.add('error', 'Network error')
+        } finally {
+            setLoading(false)
+        }
+    }
 
     const handleReset = async () => {
         if (!form.current || !form.new || !form.confirm) {
@@ -33,7 +66,7 @@ export default function SettingsPage() {
 
             const data = await res.json()
             if (res.ok) {
-                toast.add('success', '✅ Password updated successfully!')
+                toast.add('success', '✅ Password updated!')
                 setForm({ current: '', new: '', confirm: '' })
             } else {
                 toast.add('error', data.error || 'Failed to update')
@@ -47,9 +80,52 @@ export default function SettingsPage() {
 
     return (
         <div className="min-h-screen bg-[var(--bg)]">
-            <PageHeader title="Admin Settings" subtitle="Manage your admin account" />
+            <PageHeader title="Admin Settings" subtitle="Manage your profile & security" />
 
-            <div className="max-w-2xl mx-auto px-4 py-6">
+            <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+                {/* Profile Section */}
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-12 h-12 bg-green-600/10 rounded-lg flex items-center justify-center">
+                            <User className="w-6 h-6 text-green-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-[var(--fg)]">Profile</h2>
+                            <p className="text-sm text-[var(--muted)]">Update your personal information</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <ResponsiveInput
+                            label="Name"
+                            value={profileForm.name}
+                            onChange={e => setProfileForm({ ...profileForm, name: e.target.value })}
+                            placeholder="Your name"
+                            required
+                        />
+
+                        <CloudinaryUpload
+                            value={profileForm.profile_pic}
+                            onChange={url => setProfileForm({ ...profileForm, profile_pic: url })}
+                            folder="admin-profiles"
+                        />
+
+                        <button
+                            onClick={handleProfileUpdate}
+                            disabled={loading}
+                            className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {loading ? (
+                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                                <Save className="w-5 h-5" />
+                            )}
+                            {loading ? 'Updating...' : 'Update Profile'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Password Section (existing code) */}
                 <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
                     <div className="flex items-center gap-3 mb-6">
                         <div className="w-12 h-12 bg-blue-600/10 rounded-lg flex items-center justify-center">
