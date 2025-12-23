@@ -51,15 +51,17 @@ export function useDataLoader<T = any>(options: LoaderOptions<T>) {
 
             if (err) throw err
 
-            const finalData = options.transform
-                ? options.transform(result || [])
-                : (result as T[])
+            // ✅ FIXED: Safe data transformation with null checks
+            const finalData = options.transform && result
+                ? options.transform(result)
+                : (result as T[] || [])
 
             setData(finalData)
         } catch (err: any) {
-            setError(err.message || 'Failed to load data')
-            // ✅ FIXED: Proper console.error syntax
+            const errorMsg = err.message || 'Failed to load data'
+            setError(errorMsg)
             console.error(`Error loading ${options.table}:`, err)
+            setData([]) // ✅ Set empty array on error
         } finally {
             setLoading(false)
         }
@@ -72,7 +74,22 @@ export function useDataLoader<T = any>(options: LoaderOptions<T>) {
     return { data, loading, error, refresh: load }
 }
 
-// ✅ Specialized loaders
+// ✅ FIXED: Safe transformation for inventory items
+export function useInventoryItems(filter?: Record<string, any>) {
+    return useDataLoader({
+        table: 'inventory_items',
+        select: '*, inventory_categories(name, icon)',
+        filter: filter || { is_active: true },
+        order: { column: 'created_at', ascending: false },
+        transform: (items) => items.map(item => ({
+            ...item,
+            // ✅ Safe calculation with default values
+            total_value: (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0)
+        }))
+    })
+}
+
+// Other specialized loaders remain the same
 export function useOrders(filter?: Record<string, any>) {
     return useDataLoader({
         table: 'orders',
@@ -110,18 +127,5 @@ export function useMenuItems(filter?: Record<string, any>) {
         select: '*, menu_categories(name, icon)',
         filter: filter || { is_available: true },
         order: { column: 'created_at', ascending: false }
-    })
-}
-
-export function useInventoryItems(filter?: Record<string, any>) {
-    return useDataLoader({
-        table: 'inventory_items',
-        select: '*, inventory_categories(name, icon)',
-        filter: filter || { is_active: true },
-        order: { column: 'created_at', ascending: false },
-        transform: (items) => items.map(item => ({
-            ...item,
-            total_value: (item.quantity || 0) * (item.purchase_price || 0)
-        }))
     })
 }
