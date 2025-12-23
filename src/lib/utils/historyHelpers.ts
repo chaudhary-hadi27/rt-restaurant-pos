@@ -141,10 +141,9 @@ export const loadInventoryUsage = async () => {
     return { result: result.sort((a, b) => a.current_stock - b.current_stock) }
 }
 
+// Add payment breakdown in loadProfitLoss function
 export const loadProfitLoss = async (start: string, end: string, prevRange: any) => {
     const supabase = createClient()
-
-    // ✅ Try using daily_summaries first
     const daysDiff = Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24))
 
     if (daysDiff > 7) {
@@ -167,7 +166,6 @@ export const loadProfitLoss = async (start: string, end: string, prevRange: any)
                 { category: 'Net Profit', amount: netProfit, type: netProfit >= 0 ? 'profit' : 'loss' }
             ]
 
-            // Previous period
             const { data: prevSummaries } = await supabase
                 .from('daily_summaries')
                 .select('total_revenue')
@@ -180,11 +178,12 @@ export const loadProfitLoss = async (start: string, end: string, prevRange: any)
         }
     }
 
-    // Fallback to real-time calculation
-    const [ordersRes, prevOrdersRes, inventoryRes] = await Promise.all([
-        supabase.from('orders').select('total_amount, subtotal, tax').gte('created_at', start).lte('created_at', end).eq('status', 'completed'),
+    // ✅ Add payment method breakdown
+    const [ordersRes, prevOrdersRes, inventoryRes, paymentStats] = await Promise.all([
+        supabase.from('orders').select('total_amount, subtotal, tax, payment_method').gte('created_at', start).lte('created_at', end).eq('status', 'completed'),
         supabase.from('orders').select('total_amount').gte('created_at', prevRange.startDate).lte('created_at', prevRange.endDate).eq('status', 'completed'),
-        supabase.from('inventory_items').select('quantity, purchase_price')
+        supabase.from('inventory_items').select('quantity, purchase_price'),
+        supabase.from('orders').select('payment_method, total_amount').gte('created_at', start).lte('created_at', end).eq('status', 'completed')
     ])
 
     const totalRevenue = ordersRes.data?.reduce((s, o) => s + (o.total_amount || 0), 0) || 0
@@ -193,8 +192,14 @@ export const loadProfitLoss = async (start: string, end: string, prevRange: any)
     const netProfit = totalRevenue - inventoryCost - totalTax
     const prevRevenue = prevOrdersRes.data?.reduce((s, o) => s + (o.total_amount || 0), 0) || 0
 
+    // Payment breakdown
+    const cashRevenue = paymentStats.data?.filter(o => o.payment_method === 'cash').reduce((s, o) => s + o.total_amount, 0) || 0
+    const onlineRevenue = paymentStats.data?.filter(o => o.payment_method === 'online').reduce((s, o) => s + o.total_amount, 0) || 0
+
     const profitData = [
         { category: 'Total Revenue', amount: totalRevenue, type: 'income' },
+        { category: 'Cash Payments', amount: cashRevenue, type: 'income' },
+        { category: 'Online Payments', amount: onlineRevenue, type: 'income' },
         { category: 'Tax Collected', amount: totalTax, type: 'neutral' },
         { category: 'Inventory Cost', amount: inventoryCost, type: 'expense' },
         { category: 'Net Profit', amount: netProfit, type: netProfit >= 0 ? 'profit' : 'loss' }

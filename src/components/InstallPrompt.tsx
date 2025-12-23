@@ -75,6 +75,11 @@ export default function InstallPrompt() {
 
     if (!showPrompt || !deferredPrompt) return null
 
+    const isLoginPage = pathname === '/admin/login'
+    if (isLoginPage) return null
+
+    if (!showPrompt || !deferredPrompt) return null
+
     return (
         <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-sm z-[60] animate-in slide-in-from-bottom-4">
             <div className="bg-[var(--card)] border-2 border-blue-600 rounded-xl p-4 shadow-2xl">
@@ -83,12 +88,17 @@ export default function InstallPrompt() {
                         {downloaded ? <CheckCircle className="w-6 h-6 text-white" /> : <Download className="w-6 h-6 text-white" />}
                     </div>
 
+
                     <div className="flex-1 min-w-0">
                         <h3 className="font-bold text-[var(--fg)] mb-1">
-                            {downloading ? '📥 Downloading...' : downloaded ? '✅ Ready to Install!' : isAdmin ? '🛡️ Install Admin Panel' : '🍽️ Install Restaurant App'}
+                            {downloading ? '📥 Downloading...' :
+                                downloaded ? '✅ Ready to Install!' :
+                                    isAdmin ? '🛡️ RT Admin Panel' : '🍽️ RT Restaurant Management'}
                         </h3>
                         <p className="text-sm text-[var(--muted)] mb-3">
-                            {downloading ? 'Caching menu & images for offline use...' : downloaded ? 'All data cached! Install now for best experience' : 'Works offline • Faster • No internet needed'}
+                            {downloading ? 'Caching data for offline use...' :
+                                downloaded ? 'All data ready! Install now' :
+                                    'Works offline • Fast • Professional'}
                         </p>
 
                         {!downloading && (

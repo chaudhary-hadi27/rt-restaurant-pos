@@ -57,7 +57,8 @@ export function useDataLoader<T = any>(options: LoaderOptions<T>) {
 
             setData(finalData)
         } catch (err: any) {
-            setError(err.message)
+            setError(err.message || 'Failed to load data')
+            // ✅ FIXED: Proper console.error syntax
             console.error(`Error loading ${options.table}:`, err)
         } finally {
             setLoading(false)
@@ -71,8 +72,7 @@ export function useDataLoader<T = any>(options: LoaderOptions<T>) {
     return { data, loading, error, refresh: load }
 }
 
-// ✅ Specialized loaders for common queries
-
+// ✅ Specialized loaders
 export function useOrders(filter?: Record<string, any>) {
     return useDataLoader({
         table: 'orders',
@@ -121,7 +121,7 @@ export function useInventoryItems(filter?: Record<string, any>) {
         order: { column: 'created_at', ascending: false },
         transform: (items) => items.map(item => ({
             ...item,
-            total_value: item.quantity * item.purchase_price
+            total_value: (item.quantity || 0) * (item.purchase_price || 0)
         }))
     })
 }

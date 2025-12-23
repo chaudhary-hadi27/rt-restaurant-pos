@@ -2,16 +2,19 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import UnifiedSidebar from '@/components/layout/UnifiedSidebar'
 import CommandPalette from '@/components/CommandPalette'
 
 export default function CommandPaletteWrapper() {
     const [commandOpen, setCommandOpen] = useState(false)
+    const pathname = usePathname()
 
-    // Global keyboard shortcut for Command Palette
+    // ✅ Hide sidebar on login page
+    const isLoginPage = pathname === '/admin/login'
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Ctrl+K or Cmd+K to open Command Palette
             if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
                 e.preventDefault()
                 setCommandOpen(true)
@@ -24,7 +27,7 @@ export default function CommandPaletteWrapper() {
 
     return (
         <>
-            <UnifiedSidebar onCommandOpen={() => setCommandOpen(true)} />
+            {!isLoginPage && <UnifiedSidebar onCommandOpen={() => setCommandOpen(true)} />}
             <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} />
         </>
     )

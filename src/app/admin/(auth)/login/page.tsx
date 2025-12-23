@@ -2,21 +2,34 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Shield, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { Shield, Lock, Eye, EyeOff, AlertCircle, Wifi, WifiOff } from 'lucide-react'
 import { useAdminAuth } from '@/lib/hooks/useAdminAuth'
-import { useTheme } from '@/lib/store/theme-store'
 
 export default function AdminLoginPage() {
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
+    const [isOnline, setIsOnline] = useState(true)
     const { login } = useAdminAuth()
-    const { theme, toggleTheme } = useTheme()
     const router = useRouter()
 
     const [mounted, setMounted] = useState(false)
-    useEffect(() => setMounted(true), [])
+    useEffect(() => {
+        setMounted(true)
+        setIsOnline(navigator.onLine)
+
+        const handleOnline = () => setIsOnline(true)
+        const handleOffline = () => setIsOnline(false)
+
+        window.addEventListener('online', handleOnline)
+        window.addEventListener('offline', handleOffline)
+
+        return () => {
+            window.removeEventListener('online', handleOnline)
+            window.removeEventListener('offline', handleOffline)
+        }
+    }, [])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -32,6 +45,8 @@ export default function AdminLoginPage() {
         setLoading(false)
     }
 
+    if (!mounted) return null
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-[var(--bg)] p-4 sm:p-6 md:p-8">
             <div className="w-full max-w-md">
@@ -41,14 +56,31 @@ export default function AdminLoginPage() {
                     </div>
                     <h1 className="text-2xl sm:text-3xl font-bold text-[var(--fg)] mb-2">Admin Panel</h1>
                     <p className="text-sm sm:text-base text-[var(--muted)]">Enter password to access dashboard</p>
+
+                    {/* Online/Offline Status */}
+                    <div className={`inline-flex items-center gap-2 mt-3 px-3 py-1.5 rounded-full text-xs font-medium ${
+                        isOnline
+                            ? 'bg-green-500/10 text-green-600'
+                            : 'bg-yellow-500/10 text-yellow-600'
+                    }`}>
+                        {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                        {isOnline ? 'Online' : 'Offline Mode'}
+                    </div>
                 </div>
 
                 <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 sm:p-8 shadow-xl">
-                    <div className="space-y-4 sm:space-y-5">
+                    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
                         {error && (
                             <div className="p-3 sm:p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-2 sm:gap-3 animate-in slide-in-from-top-2">
                                 <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                                <p className="text-sm text-red-600">{error}</p>
+                                <div className="flex-1">
+                                    <p className="text-sm text-red-600">{error}</p>
+                                    {!isOnline && (
+                                        <p className="text-xs text-red-500 mt-1">
+                                            💡 Login online once to enable offline access
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                         )}
 
@@ -79,7 +111,7 @@ export default function AdminLoginPage() {
                         </div>
 
                         <button
-                            onClick={handleSubmit}
+                            type="submit"
                             disabled={loading || !password}
                             className="w-full py-2.5 sm:py-3 text-sm sm:text-base bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-600/30 active:scale-95 touch-manipulation"
                         >
@@ -92,7 +124,7 @@ export default function AdminLoginPage() {
                                 'Access Dashboard'
                             )}
                         </button>
-                    </div>
+                    </form>
                 </div>
 
                 <div className="mt-4 sm:mt-6 text-center">

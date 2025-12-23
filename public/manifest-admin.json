@@ -1,22 +1,25 @@
 {
   "name": "RT Admin Panel",
-  "short_name": "Admin",
-  "description": "Restaurant management dashboard",
+  "short_name": "RT Admin",
+  "description": "Complete restaurant management dashboard",
   "start_url": "/admin",
   "scope": "/admin",
   "display": "standalone",
   "background_color": "#141414",
   "theme_color": "#8b5cf6",
+  "orientation": "any",
   "icons": [
     {
-      "src": "/icons/icon-admin-192.png",
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "/icons/icon-admin-512.png",
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

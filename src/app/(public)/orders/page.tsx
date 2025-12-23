@@ -1,8 +1,8 @@
-// src/app/(public)/orders/page.tsx - REFACTORED (500 → 180 lines)
+// src/app/(public)/orders/page.tsx
 "use client"
 
 import { useState, useMemo } from 'react'
-import { Printer, Users, RefreshCw } from 'lucide-react'
+import { Printer, Users, RefreshCw, CreditCard, Banknote } from 'lucide-react'
 import { UniversalDataTable } from '@/components/ui/UniversalDataTable'
 import ResponsiveStatsGrid from '@/components/ui/ResponsiveStatsGrid'
 import AutoSidebar, { useSidebarItems } from '@/components/layout/AutoSidebar'
@@ -13,12 +13,14 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useOrders, useOrderManagement, useOrdersSync } from '@/lib/hooks'
 import { getOrderStatusColor } from '@/lib/utils/statusHelpers'
+import { createClient } from '@/lib/supabase/client'
 
 export default function OrdersPage() {
     const [filter, setFilter] = useState('active')
     const [selectedOrder, setSelectedOrder] = useState<any>(null)
     const [showReceipt, setShowReceipt] = useState<any>(null)
     const [showSplitBill, setShowSplitBill] = useState<any>(null)
+    const [showPaymentModal, setShowPaymentModal] = useState<any>(null)
 
     const { data: orders, loading, refresh } = useOrders()
     const { completeOrder, cancelOrder, markPrinted, loading: actionLoading } = useOrderManagement()
@@ -59,10 +61,26 @@ export default function OrdersPage() {
         ]
     }, [orders, filter])
 
-    const handleComplete = async (order: any) => {
-        if (!confirm('✅ Complete this order?')) return
-        const result = await completeOrder(order.id, order.table_id, order.order_type)
+    const handleComplete = async (paymentMethod: 'cash' | 'online') => {
+        if (!showPaymentModal) return
+
+        const supabase = createClient()
+
+        // Update payment method
+        await supabase
+            .from('orders')
+            .update({ payment_method: paymentMethod })
+            .eq('id', showPaymentModal.id)
+
+        // Complete order
+        const result = await completeOrder(
+            showPaymentModal.id,
+            showPaymentModal.table_id,
+            showPaymentModal.order_type
+        )
+
         if (result.success) {
+            setShowPaymentModal(null)
             setSelectedOrder(null)
             refresh()
         }
@@ -101,8 +119,14 @@ export default function OrdersPage() {
             </span>
             )},
         { key: 'payment', label: 'Payment', render: (row: any) => (
-                <span className={`inline-flex px-2 py-0.5 rounded text-xs font-semibold ${row.payment_method === 'cash' ? 'bg-green-500/20 text-green-600' : 'bg-blue-500/20 text-blue-600'}`}>
-                {row.payment_method === 'cash' ? '💵' : '💳'}
+                <span className={`inline-flex px-2 py-0.5 rounded text-xs font-semibold ${
+                    row.payment_method === 'cash' ? 'bg-green-500/20 text-green-600' :
+                        row.payment_method === 'online' ? 'bg-blue-500/20 text-blue-600' :
+                            'bg-gray-500/20 text-gray-600'
+                }`}>
+                {row.payment_method === 'cash' ? '💵 Cash' :
+                    row.payment_method === 'online' ? '💳 Online' :
+                        '⏳ Pending'}
             </span>
             )},
         { key: 'status', label: 'Status', render: (row: any) => {
@@ -126,48 +150,147 @@ export default function OrdersPage() {
             <div className="min-h-screen bg-[var(--bg)]">
                 <AutoSidebar items={sidebarItems} title="Filters" />
                 <div className="lg:ml-64">
-                    <PageHeader title="Orders" subtitle={`${stats[0].value} active • ${stats[1].value} printed`}
-                                action={<button onClick={refresh} className="p-2 hover:bg-[var(--bg)] rounded-lg active:scale-95">
-                                    <RefreshCw className="w-5 h-5 text-[var(--muted)]" />
-                                </button>} />
+                    <PageHeader
+                        title="Orders"
+                        subtitle={`${stats[0].value} active • ${stats[1].value} printed`}
+                        action={
+                            <button onClick={refresh} className="p-2 hover:bg-[var(--bg)] rounded-lg active:scale-95 transition-transform">
+                                <RefreshCw className="w-5 h-5 text-[var(--muted)]" />
+                            </button>
+                        }
+                    />
 
                     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
                         <ResponsiveStatsGrid stats={stats} />
-                        <UniversalDataTable columns={columns} data={filtered} loading={loading} searchable onRowClick={setSelectedOrder} />
+                        <UniversalDataTable
+                            columns={columns}
+                            data={filtered}
+                            loading={loading}
+                            searchable
+                            onRowClick={setSelectedOrder}
+                        />
                     </div>
                 </div>
 
+                {/* Order Details Modal */}
                 {selectedOrder && (
-                    <UniversalModal open={!!selectedOrder} onClose={() => setSelectedOrder(null)} title={`Order #${selectedOrder.id.slice(0, 8)}`}
-                                    footer={
-                                        <div className="flex flex-wrap gap-2 w-full">
-                                            <button onClick={() => handlePrint(selectedOrder)} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm">
-                                                <Printer className="w-4 h-4" /> Print
-                                            </button>
-                                            <button onClick={() => setShowSplitBill(selectedOrder)} className="flex-1 px-4 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg hover:bg-[var(--card)] flex items-center justify-center gap-2 text-sm">
-                                                <Users className="w-4 h-4" /> Split
-                                            </button>
-                                            {selectedOrder.status === 'pending' && (
-                                                <>
-                                                    <button onClick={() => handleCancel(selectedOrder)} disabled={actionLoading} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">
-                                                        Cancel
-                                                    </button>
-                                                    <button onClick={() => handleComplete(selectedOrder)} disabled={actionLoading} className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
-                                                        Complete
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-                                    }>
+                    <UniversalModal
+                        open={!!selectedOrder}
+                        onClose={() => setSelectedOrder(null)}
+                        title={`Order #${selectedOrder.id.slice(0, 8)}`}
+                        footer={
+                            <div className="flex flex-wrap gap-2 w-full">
+                                <button
+                                    onClick={() => handlePrint(selectedOrder)}
+                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm font-medium transition-colors active:scale-95"
+                                >
+                                    <Printer className="w-4 h-4" /> Print
+                                </button>
+                                <button
+                                    onClick={() => setShowSplitBill(selectedOrder)}
+                                    className="flex-1 px-4 py-2 bg-[var(--bg)] border border-[var(--border)] text-[var(--fg)] rounded-lg hover:bg-[var(--card)] flex items-center justify-center gap-2 text-sm font-medium transition-colors active:scale-95"
+                                >
+                                    <Users className="w-4 h-4" /> Split
+                                </button>
+                                {selectedOrder.status === 'pending' && (
+                                    <>
+                                        <button
+                                            onClick={() => handleCancel(selectedOrder)}
+                                            disabled={actionLoading}
+                                            className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors disabled:opacity-50 active:scale-95"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                // Check if dine-in without payment
+                                                if (selectedOrder.order_type === 'dine-in' && !selectedOrder.payment_method) {
+                                                    setShowPaymentModal(selectedOrder)
+                                                } else {
+                                                    // Direct complete for delivery orders
+                                                    handleComplete(selectedOrder.payment_method || 'cash')
+                                                }
+                                            }}
+                                            disabled={actionLoading}
+                                            className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors disabled:opacity-50 active:scale-95"
+                                        >
+                                            Complete
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        }
+                    >
                         <div className="space-y-3">
                             {selectedOrder.order_items?.map((item: any) => (
                                 <div key={item.id} className="flex justify-between p-3 bg-[var(--bg)] rounded-lg">
-                                    <span className="font-medium text-sm">{item.quantity}× {item.menu_items?.name}</span>
-                                    <span className="font-bold text-sm">PKR {item.total_price}</span>
+                                    <span className="font-medium text-sm text-[var(--fg)]">
+                                        {item.quantity}× {item.menu_items?.name}
+                                    </span>
+                                    <span className="font-bold text-sm text-[var(--fg)]">
+                                        PKR {item.total_price.toLocaleString()}
+                                    </span>
                                 </div>
                             ))}
                         </div>
                     </UniversalModal>
+                )}
+
+                {/* Payment Modal (Only for Dine-In) */}
+                {showPaymentModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowPaymentModal(null)}>
+                        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+                            <div className="p-6 border-b border-[var(--border)]">
+                                <h3 className="text-lg font-bold text-[var(--fg)]">Select Payment Method</h3>
+                                <p className="text-sm text-[var(--muted)] mt-1">
+                                    Order #{showPaymentModal.id.slice(0, 8).toUpperCase()}
+                                </p>
+                            </div>
+
+                            <div className="p-6 space-y-3">
+                                <button
+                                    onClick={() => handleComplete('cash')}
+                                    disabled={actionLoading}
+                                    className="w-full p-4 border-2 border-[var(--border)] rounded-lg hover:border-green-600 hover:bg-green-600/10 transition-all group disabled:opacity-50"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 bg-green-600/20 rounded-lg flex items-center justify-center group-hover:bg-green-600/30 transition-colors">
+                                            <Banknote className="w-6 h-6 text-green-600" />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="font-semibold text-[var(--fg)]">Cash Payment</p>
+                                            <p className="text-xs text-[var(--muted)]">Pay with cash</p>
+                                        </div>
+                                    </div>
+                                </button>
+
+                                <button
+                                    onClick={() => handleComplete('online')}
+                                    disabled={actionLoading}
+                                    className="w-full p-4 border-2 border-[var(--border)] rounded-lg hover:border-blue-600 hover:bg-blue-600/10 transition-all group disabled:opacity-50"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center group-hover:bg-blue-600/30 transition-colors">
+                                            <CreditCard className="w-6 h-6 text-blue-600" />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="font-semibold text-[var(--fg)]">Online Payment</p>
+                                            <p className="text-xs text-[var(--muted)]">Card / UPI / Wallet</p>
+                                        </div>
+                                    </div>
+                                </button>
+                            </div>
+
+                            <div className="p-6 pt-0">
+                                <button
+                                    onClick={() => setShowPaymentModal(null)}
+                                    className="w-full px-4 py-2 bg-[var(--bg)] text-[var(--fg)] rounded-lg hover:bg-[var(--border)] text-sm font-medium transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 )}
 
                 {showReceipt && <ReceiptModal order={showReceipt} onClose={() => setShowReceipt(null)} />}

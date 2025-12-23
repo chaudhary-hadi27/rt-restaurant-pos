@@ -4,7 +4,6 @@ import { persist } from 'zustand/middleware'
 
 /**
  * Design Token System
- * Defines all color, spacing, and style tokens used across the application
  */
 export const designTokens = {
     light: {
@@ -79,35 +78,26 @@ export const designTokens = {
             infoBg: '#1e3a8a'
         }
     }
-} as const
+}
 
 type Theme = 'dark' | 'light'
+type DesignTokens = typeof designTokens.light
 
 interface ThemeStore {
     theme: Theme
     toggleTheme: () => void
     setTheme: (theme: Theme) => void
-    getTokens: () => typeof designTokens.light
+    getTokens: () => DesignTokens
 }
 
-/**
- * Theme Store
- *
- * Relationships:
- * - Persists to localStorage
- * - Updates DOM immediately on change
- * - Provides design tokens based on current theme
- * - Used by ThemeInitializer component
- */
 export const useTheme = create<ThemeStore>()(
     persist(
         (set, get) => ({
-            theme: 'light', // Default to light theme
+            theme: 'light',
 
             toggleTheme: () => set(state => {
                 const newTheme: Theme = state.theme === 'dark' ? 'light' : 'dark'
 
-                // Update DOM immediately for instant visual feedback
                 if (typeof document !== 'undefined') {
                     document.documentElement.classList.remove('light', 'dark')
                     document.documentElement.setAttribute('data-theme', newTheme)
@@ -124,15 +114,14 @@ export const useTheme = create<ThemeStore>()(
 
             setTheme: (theme: Theme) => set({ theme }),
 
-            getTokens: () => {
+            // ✅ FIXED: Explicit return type
+            getTokens: (): DesignTokens => {
                 const { theme } = get()
                 return designTokens[theme]
             }
         }),
         {
             name: 'theme-storage',
-
-            // Apply theme immediately on rehydration
             onRehydrateStorage: () => (state) => {
                 if (state && typeof document !== 'undefined') {
                     document.documentElement.classList.remove('light', 'dark')
@@ -151,16 +140,14 @@ export const useTheme = create<ThemeStore>()(
 
 /**
  * Hook to get current design tokens
- * Use this in components that need direct access to color values
  */
-export const useDesignTokens = () => {
+export const useDesignTokens = (): DesignTokens => {
     const theme = useTheme(state => state.theme)
     return designTokens[theme]
 }
 
 /**
  * Utility function to get a specific token value
- * Example: getToken('brand.primary') returns '#3b82f6'
  */
 export const getToken = (path: string, theme: Theme = 'light'): string => {
     const tokens = designTokens[theme]

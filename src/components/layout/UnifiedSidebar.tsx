@@ -18,9 +18,11 @@ import {
     Timer,
     History,
     Settings,
-    Download
+    Download,
+    Database
 } from "lucide-react"
 import { useTheme } from "@/lib/store/theme-store"
+import StorageInfo from "@/components/ui/StorageInfo"
 
 const NAV = {
     public: [
@@ -48,6 +50,9 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
     const [open, setOpen] = useState(false)
     const [hydrated, setHydrated] = useState(false)
     const [touchStart, setTouchStart] = useState(0)
+
+    // Storage info modal
+    const [showStorage, setShowStorage] = useState(false)
 
     // PWA install
     const [installPrompt, setInstallPrompt] = useState<any>(null)
@@ -87,7 +92,6 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
         if (open && diff < -50) setOpen(false)
     }
 
-    // Shared tooltip class (consistent)
     const TOOLTIP_CLASS =
         "hidden lg:block absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-[var(--card)] text-[var(--fg)] border border-[var(--border)] rounded-lg text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity shadow-lg z-[70]"
 
@@ -101,7 +105,12 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
             />
 
             {/* Overlay */}
-            {open && <div className="lg:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setOpen(false)} />}
+            {open && (
+                <div
+                    className="lg:hidden fixed inset-0 bg-black/50 z-40"
+                    onClick={() => setOpen(false)}
+                />
+            )}
 
             {/* Sidebar */}
             <aside
@@ -111,27 +120,47 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
             >
-                <Link href={isAdmin ? "/admin" : "/"} className="h-16 flex items-center justify-center border-b border-[var(--border)]" onClick={() => setOpen(false)}>
-                    <div className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold text-lg shadow-lg">RT</div>
+                <Link
+                    href={isAdmin ? "/admin" : "/"}
+                    className="h-16 flex items-center justify-center border-b border-[var(--border)]"
+                    onClick={() => setOpen(false)}
+                >
+                    <div className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold text-lg shadow-lg">
+                        RT
+                    </div>
                 </Link>
 
                 {/* Navigation */}
                 <nav className="flex-1 py-2 px-2 space-y-1 scrollbar-hide">
                     {items.map(item => {
                         const Icon = item.icon
-                        const active = pathname === item.href || (item.href !== "/" && item.href !== "/admin" && pathname.startsWith(item.href))
+                        const active =
+                            pathname === item.href ||
+                            (item.href !== "/" &&
+                                item.href !== "/admin" &&
+                                pathname.startsWith(item.href))
+
                         return (
                             <div key={item.href} className="relative group">
-                                <Link href={item.href} onClick={() => setOpen(false)} className="block">
-                                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-200 ${active ? "bg-blue-600 text-white shadow-lg" : "text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)]"}`}>
+                                <Link
+                                    href={item.href}
+                                    onClick={() => setOpen(false)}
+                                    className="block"
+                                >
+                                    <div
+                                        className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                                            active
+                                                ? "bg-blue-600 text-white shadow-lg"
+                                                : "text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)]"
+                                        }`}
+                                    >
                                         <Icon className="w-5 h-5" />
                                     </div>
                                 </Link>
 
-                                {/* Tooltip (consistent) */}
                                 <span className={TOOLTIP_CLASS} aria-hidden>
-                  {item.label}
-                </span>
+                                    {item.label}
+                                </span>
                             </div>
                         )
                     })}
@@ -139,23 +168,22 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
 
                 {/* Bottom Actions */}
                 <div className="p-2 border-t border-[var(--border)] space-y-1">
-                    {/* Install Button (if available) */}
+                    {/* Install */}
                     {installPrompt && (
                         <div className="relative group">
                             <button
                                 onClick={handleInstall}
                                 className="w-12 h-12 rounded-lg flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all duration-200"
-                                aria-label="Install App"
                             >
                                 <Download className="w-5 h-5" />
                             </button>
                             <span className={TOOLTIP_CLASS} aria-hidden>
-                {isAdmin ? "Install Admin" : "Install App"}
-              </span>
+                                {isAdmin ? "Install Admin" : "Install App"}
+                            </span>
                         </div>
                     )}
 
-                    {/* Command Button */}
+                    {/* Command */}
                     <div className="relative group">
                         <button
                             onClick={() => {
@@ -163,42 +191,74 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                                 setOpen(false)
                             }}
                             className="w-12 h-12 rounded-lg flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all duration-200"
-                            aria-label="Quick Actions"
                         >
                             <Command className="w-5 h-5" />
                         </button>
                         <span className={TOOLTIP_CLASS} aria-hidden>
-              Quick Actions
-            </span>
+                            Quick Actions
+                        </span>
                     </div>
 
-                    {/* Theme Button */}
+                    {/* Theme */}
                     <div className="relative group">
                         <button
                             onClick={toggleTheme}
                             className="w-12 h-12 rounded-lg flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all duration-200"
-                            aria-label="Toggle Theme"
                         >
-                            {theme === "dark" ? <Sun className="w-5 h-5 text-yellow-500" /> : <Moon className="w-5 h-5 text-blue-600" />}
+                            {theme === "dark" ? (
+                                <Sun className="w-5 h-5 text-yellow-500" />
+                            ) : (
+                                <Moon className="w-5 h-5 text-blue-600" />
+                            )}
                         </button>
                         <span className={TOOLTIP_CLASS} aria-hidden>
-              {theme === "dark" ? "Light Mode" : "Dark Mode"}
-            </span>
+                            {theme === "dark" ? "Light Mode" : "Dark Mode"}
+                        </span>
+                    </div>
+
+                    {/* Storage Info */}
+                    <div className="relative group">
+                        <button
+                            onClick={() => {
+                                setShowStorage(true)
+                                setOpen(false)
+                            }}
+                            className="w-12 h-12 rounded-lg flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all duration-200"
+                        >
+                            <Database className="w-5 h-5" />
+                        </button>
+                        <span className={TOOLTIP_CLASS} aria-hidden>
+                            Storage Info
+                        </span>
                     </div>
 
                     {/* Admin Toggle */}
                     <div className="relative group">
-                        <Link href={isAdmin ? "/" : "/admin"} onClick={() => setOpen(false)} className="block">
+                        <Link
+                            href={isAdmin ? "/" : "/admin"}
+                            onClick={() => setOpen(false)}
+                            className="block"
+                        >
                             <div className="w-12 h-12 rounded-lg flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all duration-200">
-                                {isAdmin ? <UtensilsCrossed className="w-5 h-5" /> : <Shield className="w-5 h-5" />}
+                                {isAdmin ? (
+                                    <UtensilsCrossed className="w-5 h-5" />
+                                ) : (
+                                    <Shield className="w-5 h-5" />
+                                )}
                             </div>
                         </Link>
                         <span className={TOOLTIP_CLASS} aria-hidden>
-              {isAdmin ? "Restaurant" : "Admin Panel"}
-            </span>
+                            {isAdmin ? "Restaurant" : "Admin Panel"}
+                        </span>
                     </div>
                 </div>
             </aside>
+
+            {/* Storage Info Modal */}
+            <StorageInfo
+                open={showStorage}
+                onClose={() => setShowStorage(false)}
+            />
         </>
     )
 }

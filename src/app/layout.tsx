@@ -26,18 +26,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     return (
         <html lang="en" suppressHydrationWarning>
         <head>
-            {/* ✅ FIX: Add manifest dynamically via script */}
+            {/* ✅ FIXED: Separate manifest loading */}
             <script dangerouslySetInnerHTML={{
                 __html: `
-                    (function() {
-                        const isAdmin = window.location.pathname.startsWith('/admin');
-                        const manifest = isAdmin ? '/manifest-admin.json' : '/manifest-public.json';
-                        const link = document.createElement('link');
-                        link.rel = 'manifest';
-                        link.href = manifest;
-                        document.head.appendChild(link);
-                    })();
-                `
+            (function() {
+                const isAdmin = window.location.pathname.startsWith('/admin');
+                const manifest = isAdmin ? '/manifest-admin.json' : '/manifest-public.json';
+                const link = document.createElement('link');
+                link.rel = 'manifest';
+                link.href = manifest;
+                document.head.appendChild(link);
+                
+                // Store context for later use
+                window.__APP_CONTEXT__ = isAdmin ? 'admin' : 'public';
+            })();
+        `
             }} />
 
             <link rel="apple-touch-icon" href="/icons/icon-192.png" />
