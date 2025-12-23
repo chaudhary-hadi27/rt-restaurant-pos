@@ -1,9 +1,9 @@
-// src/lib/utils/historyHelpers.ts
+// src/lib/utils/historyHelpers.ts - FIXED
 import { createClient } from '@/lib/supabase/client'
 
 type DateRange = 'today' | 'week' | 'month' | 'year'
+type TrendType = 'up' | 'down' | 'neutral' // ✅ ADD TYPE
 
-// ✅ REFACTORED: Unified date range logic
 export const getDateRange = (range: DateRange) => {
     const now = new Date()
     const start = new Date()
@@ -29,16 +29,21 @@ export const getPreviousDateRange = (range: DateRange) => {
     }
 }
 
-export const calculateComparison = (current: number, previous: number) => {
-    if (previous === 0) return { change: 0, trend: 'neutral' as const }
+// ✅ FIX: Remove 'as const', use explicit type
+export const calculateComparison = (current: number, previous: number): { change: number; trend: TrendType } => {
+    if (previous === 0) return { change: 0, trend: 'neutral' }
     const change = ((current - previous) / previous) * 100
+
+    let trend: TrendType = 'neutral'
+    if (change > 0) trend = 'up'
+    else if (change < 0) trend = 'down'
+
     return {
         change: Math.abs(change),
-        trend: (change > 0 ? 'up' : change < 0 ? 'down' : 'neutral') as const
+        trend
     }
 }
 
-// ✅ REFACTORED: Generic query builder
 async function fetchOrders(startDate: string, endDate: string, select = 'total_amount') {
     const supabase = createClient()
     const { data, error } = await supabase
@@ -52,11 +57,9 @@ async function fetchOrders(startDate: string, endDate: string, select = 'total_a
     return data || []
 }
 
-// ✅ REFACTORED: Waiter report with shared logic
 export const loadWaiterReport = async (start: string, end: string, prevRange: any) => {
     const daysDiff = Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24))
 
-    // Use summaries for long ranges
     if (daysDiff > 7) {
         const orders = await fetchOrders(start, end, 'waiter_id, total_amount, waiters(name, profile_pic)')
 
@@ -84,7 +87,6 @@ export const loadWaiterReport = async (start: string, end: string, prevRange: an
         return { result, comparison: calculateComparison(totalRevenue, prevRevenue) }
     }
 
-    // Detailed data for short ranges
     const [currentOrders, prevOrders] = await Promise.all([
         fetchOrders(start, end, 'waiter_id, total_amount, waiters(name, profile_pic), order_items(quantity, menu_items(name))'),
         fetchOrders(prevRange.startDate, prevRange.endDate)
@@ -124,7 +126,6 @@ export const loadWaiterReport = async (start: string, end: string, prevRange: an
     return { result, comparison: calculateComparison(totalRevenue, prevRevenue) }
 }
 
-// ✅ REFACTORED: Menu report with shared logic
 export const loadMenuReport = async (start: string, end: string, prevRange: any) => {
     const supabase = createClient()
 
@@ -136,7 +137,15 @@ export const loadMenuReport = async (start: string, end: string, prevRange: any)
             .gte('created_at', prevRange.startDate).lte('created_at', prevRange.endDate)
     ])
 
-    const menuStats = (totalMenuRes.data || []).reduce((acc: any, item) => {
+    type MenuStat = {
+        item_name: string
+        price: number
+        available: boolean
+        total_quantity: number
+        total_revenue: number
+    }
+
+    const menuStats: Record<string, MenuStat> = (totalMenuRes.data || []).reduce((acc: Record<string, MenuStat>, item) => {
         acc[item.id] = {
             item_name: item.name,
             price: item.price,
@@ -154,16 +163,15 @@ export const loadMenuReport = async (start: string, end: string, prevRange: any)
         }
     })
 
-    const result = Object.values(menuStats).sort((a: any, b: any) => b.total_quantity - a.total_quantity)
-    const servedItems = result.filter((r: any) => r.total_quantity > 0).length
+    const result = Object.values(menuStats).sort((a, b) => b.total_quantity - a.total_quantity)
+    const servedItems = result.filter(r => r.total_quantity > 0)
 
     return {
         result,
-        comparison: calculateComparison(servedItems, prevServedRes.data?.length || 0)
+        comparison: calculateComparison(servedItems.length, prevServedRes.data?.length || 0)
     }
 }
 
-// ✅ REFACTORED: Inventory usage
 export const loadInventoryUsage = async () => {
     const supabase = createClient()
     const { data, error } = await supabase
@@ -185,12 +193,10 @@ export const loadInventoryUsage = async () => {
     }
 }
 
-// ✅ REFACTORED: Profit/Loss with payment breakdown
 export const loadProfitLoss = async (start: string, end: string, prevRange: any) => {
     const supabase = createClient()
     const daysDiff = Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24))
 
-    // Use summaries for long ranges
     if (daysDiff > 7) {
         const { data: summaries } = await supabase
             .from('daily_summaries')
@@ -227,7 +233,6 @@ export const loadProfitLoss = async (start: string, end: string, prevRange: any)
         }
     }
 
-    // Detailed calculation
     const [ordersRes, prevOrdersRes, inventoryRes, paymentStats] = await Promise.all([
         fetchOrders(start, end, 'total_amount, subtotal, tax, payment_method'),
         fetchOrders(prevRange.startDate, prevRange.endDate),

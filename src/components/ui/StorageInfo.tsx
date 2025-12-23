@@ -1,4 +1,4 @@
-// src/components/ui/StorageInfo.tsx
+// src/components/ui/StorageInfo.tsx - FIXED
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -46,7 +46,7 @@ export default function StorageInfo({ open, onClose }: { open: boolean; onClose:
 
         setClearing(true)
         try {
-            await offlineManager.clearAllData(false) // Keep menu
+            await offlineManager.clearAllData(false)
             await loadInfo()
         } catch (error) {
             console.error('Failed to clear data:', error)
@@ -72,7 +72,7 @@ export default function StorageInfo({ open, onClose }: { open: boolean; onClose:
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
 
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 sm:p-6 border-b border-[var(--border)]">
+                <div className="flex items-center justify-between p-6 border-b border-[var(--border)]">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-blue-600/10 rounded-lg flex items-center justify-center">
                             <Database className="w-5 h-5 text-blue-600" />
@@ -88,7 +88,7 @@ export default function StorageInfo({ open, onClose }: { open: boolean; onClose:
                 </div>
 
                 {/* Content */}
-                <div className="p-4 sm:p-6 space-y-4">
+                <div className="p-6 space-y-4">
                     {loading ? (
                         <div className="flex justify-center py-8">
                             <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
@@ -100,8 +100,8 @@ export default function StorageInfo({ open, onClose }: { open: boolean; onClose:
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-sm font-medium text-[var(--fg)]">Total Storage</span>
                                     <span className="text-sm font-bold text-[var(--fg)]">
-                    {info.used} MB / {info.limit > 0 ? `${info.limit} MB` : '∞'}
-                  </span>
+                                        {info.used} MB / {info.limit > 0 ? `${info.limit} MB` : '∞'}
+                                    </span>
                                 </div>
                                 <div className="h-2 bg-[var(--border)] rounded-full overflow-hidden">
                                     <div
@@ -128,8 +128,8 @@ export default function StorageInfo({ open, onClose }: { open: boolean; onClose:
                                         <span className="text-sm text-[var(--fg)]">Menu Data</span>
                                     </div>
                                     <span className="text-sm font-bold text-blue-600">
-                    {info.breakdown.menu} KB
-                  </span>
+                                        {info.breakdown.menu} KB
+                                    </span>
                                 </div>
 
                                 <div className="flex items-center justify-between p-3 bg-[var(--bg)] rounded-lg">
@@ -138,8 +138,8 @@ export default function StorageInfo({ open, onClose }: { open: boolean; onClose:
                                         <span className="text-sm text-[var(--fg)]">Orders</span>
                                     </div>
                                     <span className="text-sm font-bold text-green-600">
-                    {info.breakdown.orders} KB
-                  </span>
+                                        {info.breakdown.orders} KB
+                                    </span>
                                 </div>
 
                                 <div className="flex items-center justify-between p-3 bg-[var(--bg)] rounded-lg">
@@ -148,8 +148,8 @@ export default function StorageInfo({ open, onClose }: { open: boolean; onClose:
                                         <span className="text-sm text-[var(--fg)]">Images</span>
                                     </div>
                                     <span className="text-sm font-bold text-purple-600">
-                    {info.breakdown.images} KB
-                  </span>
+                                        {info.breakdown.images} KB
+                                    </span>
                                 </div>
                             </div>
 
@@ -205,13 +205,13 @@ export default function StorageInfo({ open, onClose }: { open: boolean; onClose:
                                 </button>
                             </div>
 
-                            {/* Info */}
+                            {/* Info Box */}
                             <div className="text-xs text-[var(--muted)] space-y-1 bg-[var(--bg)] p-3 rounded-lg">
                                 <p className="font-semibold text-[var(--fg)] mb-2">📌 Optimization Info:</p>
-                                <p>• Menu always cached (essential data)</p>
-                                <p>• Orders kept for 30 days (max 200)</p>
-                                <p>• Images cached based on network</p>
-                                <p>• Auto-cleanup runs daily</p>
+                                <p className="text-[var(--fg)]">• Menu always cached (essential data)</p>
+                                <p className="text-[var(--fg)]">• Orders kept for 30 days (max 200)</p>
+                                <p className="text-[var(--fg)]">• Images cached based on network</p>
+                                <p className="text-[var(--fg)]">• Auto-cleanup runs daily</p>
                             </div>
                         </>
                     ) : (

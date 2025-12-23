@@ -1,272 +1,220 @@
 -- ============================================
--- RT RESTAURANT MANAGEMENT SYSTEM
--- Database Schema - Complete
+-- RT RESTAURANT - COMPLETE PRODUCTION SCHEMA
+-- Version: 2.0 (Optimized + Auto-Cleanup)
 -- ============================================
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================
--- 1. ADMIN CONFIGURATION
+-- 1. ADMIN AUTHENTICATION
 -- ============================================
-CREATE TABLE admin_config (
-                              id INTEGER PRIMARY KEY DEFAULT 1,
-                              password_hash TEXT NOT NULL,
-                              created_at TIMESTAMPTZ DEFAULT NOW(),
-                              updated_at TIMESTAMPTZ DEFAULT NOW(),
-                              CONSTRAINT single_admin CHECK (id = 1)
-);
+CREATE TABLE IF NOT EXISTS admin_config (
+                                            id INTEGER PRIMARY KEY DEFAULT 1,
+                                            password_hash TEXT NOT NULL,
+                                            created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT single_admin CHECK (id = 1)
+    );
 
--- Insert default admin (password: admin123)
-INSERT INTO admin_config (id, password_hash)
-VALUES (1, '$2a$10$rK.Xm9vL8qY3Z2fJ4xH6ZO7WqY3tL8kM5nN9pP2qQ3rR4sS5tT6uU');
-
--- ============================================
--- 2. MENU CATEGORIES
--- ============================================
-CREATE TABLE menu_categories (
-                                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                                 name VARCHAR(100) NOT NULL,
-                                 icon VARCHAR(10) DEFAULT '📋',
-                                 display_order INTEGER DEFAULT 0,
-                                 is_active BOOLEAN DEFAULT true,
-                                 created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_menu_categories_active ON menu_categories(is_active);
-CREATE INDEX idx_menu_categories_order ON menu_categories(display_order);
-
--- Sample data
-INSERT INTO menu_categories (name, icon, display_order) VALUES
-                                                            ('Fast Food', '🍔', 1),
-                                                            ('Main Course', '🍛', 2),
-                                                            ('Beverages', '☕', 3),
-                                                            ('Desserts', '🍰', 4);
+-- Default password: admin123
+INSERT INTO admin_config (id, password_hash) VALUES (1, '$2a$10$rK.Xm9vL8qY3Z2fJ4xH6ZO7WqY3tL8kM5nN9pP2qQ3rR4sS5tT6uU')
+    ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
--- 3. MENU ITEMS
+-- 2. MENU SYSTEM
 -- ============================================
-CREATE TABLE menu_items (
-                            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                            category_id UUID REFERENCES menu_categories(id) ON DELETE SET NULL,
-                            name VARCHAR(200) NOT NULL,
-                            description TEXT,
-                            price DECIMAL(10, 2) NOT NULL CHECK (price >= 0),
-                            image_url TEXT,
-                            is_available BOOLEAN DEFAULT true,
-                            preparation_time INTEGER DEFAULT 15,
-                            created_at TIMESTAMPTZ DEFAULT NOW(),
-                            updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+CREATE TABLE IF NOT EXISTS menu_categories (
+                                               id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) NOT NULL,
+    icon VARCHAR(10) DEFAULT '📋',
+    display_order INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+    );
 
-CREATE INDEX idx_menu_items_category ON menu_items(category_id);
-CREATE INDEX idx_menu_items_available ON menu_items(is_available);
-CREATE INDEX idx_menu_items_name ON menu_items(name);
-
--- Sample data
-INSERT INTO menu_items (category_id, name, price, description)
-SELECT id, 'Chicken Burger', 450, 'Crispy chicken patty with cheese'
-FROM menu_categories WHERE name = 'Fast Food' LIMIT 1;
-
--- ============================================
--- 4. RESTAURANT TABLES
--- ============================================
-CREATE TABLE restaurant_tables (
-                                   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                                   table_number INTEGER NOT NULL UNIQUE CHECK (table_number > 0),
-                                   capacity INTEGER NOT NULL CHECK (capacity > 0),
-                                   section VARCHAR(50) DEFAULT 'Main',
-                                   status VARCHAR(20) DEFAULT 'available' CHECK (status IN ('available', 'occupied', 'reserved', 'cleaning')),
-                                   waiter_id UUID,
-                                   current_order_id UUID,
-                                   created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_tables_status ON restaurant_tables(status);
-CREATE INDEX idx_tables_number ON restaurant_tables(table_number);
-
--- Sample data
-INSERT INTO restaurant_tables (table_number, capacity, section) VALUES
-                                                                    (1, 4, 'Main'),
-                                                                    (2, 2, 'Main'),
-                                                                    (3, 6, 'VIP'),
-                                                                    (4, 4, 'Outdoor');
+CREATE TABLE IF NOT EXISTS menu_items (
+                                          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    category_id UUID REFERENCES menu_categories(id) ON DELETE SET NULL,
+    name VARCHAR(200) NOT NULL,
+    description TEXT,
+    price DECIMAL(10, 2) NOT NULL CHECK (price >= 0),
+    image_url TEXT,
+    is_available BOOLEAN DEFAULT true,
+    preparation_time INTEGER DEFAULT 15,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
 
 -- ============================================
--- 5. WAITERS/STAFF
+-- 3. RESTAURANT OPERATIONS
 -- ============================================
-CREATE TABLE waiters (
-                         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                         name VARCHAR(100) NOT NULL,
-                         phone VARCHAR(20),
-                         cnic VARCHAR(20),
-                         employee_type VARCHAR(20) DEFAULT 'waiter' CHECK (employee_type IN ('waiter', 'chef', 'manager', 'cashier', 'cleaner')),
-                         profile_pic TEXT,
-                         total_orders INTEGER DEFAULT 0,
-                         total_revenue DECIMAL(12, 2) DEFAULT 0,
-                         avg_rating DECIMAL(3, 2) DEFAULT 0,
-                         is_active BOOLEAN DEFAULT true,
-                         is_on_duty BOOLEAN DEFAULT false,
-                         created_at TIMESTAMPTZ DEFAULT NOW()
-);
+CREATE TABLE IF NOT EXISTS restaurant_tables (
+                                                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    table_number INTEGER NOT NULL UNIQUE CHECK (table_number > 0),
+    capacity INTEGER NOT NULL CHECK (capacity > 0),
+    section VARCHAR(50) DEFAULT 'Main',
+    status VARCHAR(20) DEFAULT 'available' CHECK (status IN ('available', 'occupied', 'reserved', 'cleaning')),
+    waiter_id UUID,
+    current_order_id UUID,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+    );
 
-CREATE INDEX idx_waiters_active ON waiters(is_active);
-CREATE INDEX idx_waiters_on_duty ON waiters(is_on_duty);
-
--- Sample data
-INSERT INTO waiters (name, phone, employee_type) VALUES
-                                                     ('Ahmed Ali', '+92 300 1234567', 'waiter'),
-                                                     ('Sara Khan', '+92 301 2345678', 'waiter');
+CREATE TABLE IF NOT EXISTS waiters (
+                                       id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20),
+    cnic VARCHAR(20),
+    employee_type VARCHAR(20) DEFAULT 'waiter' CHECK (employee_type IN ('waiter', 'chef', 'manager', 'cashier', 'cleaner')),
+    profile_pic TEXT,
+    total_orders INTEGER DEFAULT 0,
+    total_revenue DECIMAL(12, 2) DEFAULT 0,
+    avg_rating DECIMAL(3, 2) DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    is_on_duty BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+    );
 
 -- ============================================
--- 6. ORDERS
+-- 4. ORDERS SYSTEM
 -- ============================================
-CREATE TABLE orders (
-                        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                        table_id UUID REFERENCES restaurant_tables(id) ON DELETE SET NULL,
-                        waiter_id UUID REFERENCES waiters(id) ON DELETE SET NULL,
-                        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'preparing', 'completed', 'cancelled')),
-                        order_type VARCHAR(20) DEFAULT 'dine-in' CHECK (order_type IN ('dine-in', 'delivery')),
+CREATE TABLE IF NOT EXISTS orders (
+                                      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    table_id UUID REFERENCES restaurant_tables(id) ON DELETE SET NULL,
+    waiter_id UUID REFERENCES waiters(id) ON DELETE SET NULL,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'preparing', 'completed', 'cancelled')),
+    order_type VARCHAR(20) DEFAULT 'dine-in' CHECK (order_type IN ('dine-in', 'delivery')),
 
     -- Delivery fields
-                        customer_name VARCHAR(100),
-                        customer_phone VARCHAR(20),
-                        delivery_address TEXT,
-                        delivery_charges DECIMAL(10, 2) DEFAULT 0,
+    customer_name VARCHAR(100),
+    customer_phone VARCHAR(20),
+    delivery_address TEXT,
+    delivery_charges DECIMAL(10, 2) DEFAULT 0,
 
     -- Pricing
-                        subtotal DECIMAL(10, 2) NOT NULL CHECK (subtotal >= 0),
-                        tax DECIMAL(10, 2) DEFAULT 0 CHECK (tax >= 0),
-                        total_amount DECIMAL(10, 2) NOT NULL CHECK (total_amount >= 0),
+    subtotal DECIMAL(10, 2) NOT NULL CHECK (subtotal >= 0),
+    tax DECIMAL(10, 2) DEFAULT 0 CHECK (tax >= 0),
+    total_amount DECIMAL(10, 2) NOT NULL CHECK (total_amount >= 0),
 
     -- Payment
-                        payment_method VARCHAR(20) CHECK (payment_method IN ('cash', 'online', NULL)),
-                        receipt_printed BOOLEAN DEFAULT false,
+    payment_method VARCHAR(20) CHECK (payment_method IN ('cash', 'online', NULL)),
+    receipt_printed BOOLEAN DEFAULT false,
 
-                        notes TEXT,
-                        created_at TIMESTAMPTZ DEFAULT NOW(),
-                        updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
 
-CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_table ON orders(table_id);
-CREATE INDEX idx_orders_waiter ON orders(waiter_id);
-CREATE INDEX idx_orders_created ON orders(created_at DESC);
-CREATE INDEX idx_orders_type ON orders(order_type);
-
--- ============================================
--- 7. ORDER ITEMS
--- ============================================
-CREATE TABLE order_items (
-                             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                             order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-                             menu_item_id UUID NOT NULL REFERENCES menu_items(id) ON DELETE RESTRICT,
-                             quantity INTEGER NOT NULL CHECK (quantity > 0),
-                             unit_price DECIMAL(10, 2) NOT NULL CHECK (unit_price >= 0),
-                             total_price DECIMAL(10, 2) NOT NULL CHECK (total_price >= 0),
-                             notes TEXT,
-                             status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'preparing', 'ready', 'served')),
-                             created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_order_items_order ON order_items(order_id);
-CREATE INDEX idx_order_items_menu ON order_items(menu_item_id);
+CREATE TABLE IF NOT EXISTS order_items (
+                                           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    menu_item_id UUID NOT NULL REFERENCES menu_items(id) ON DELETE RESTRICT,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    unit_price DECIMAL(10, 2) NOT NULL CHECK (unit_price >= 0),
+    total_price DECIMAL(10, 2) NOT NULL CHECK (total_price >= 0),
+    notes TEXT,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'preparing', 'ready', 'served')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+    );
 
 -- ============================================
--- 8. INVENTORY CATEGORIES
+-- 5. INVENTORY SYSTEM
 -- ============================================
-CREATE TABLE inventory_categories (
-                                      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                                      name VARCHAR(100) NOT NULL,
-                                      icon VARCHAR(10) DEFAULT '📦',
-                                      display_order INTEGER DEFAULT 0,
-                                      is_active BOOLEAN DEFAULT true,
-                                      created_at TIMESTAMPTZ DEFAULT NOW()
-);
+CREATE TABLE IF NOT EXISTS inventory_categories (
+                                                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) NOT NULL,
+    icon VARCHAR(10) DEFAULT '📦',
+    display_order INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+    );
 
--- Sample data
-INSERT INTO inventory_categories (name, icon, display_order) VALUES
-                                                                 ('Vegetables', '🥬', 1),
-                                                                 ('Meat', '🍖', 2),
-                                                                 ('Dairy', '🥛', 3),
-                                                                 ('Spices', '🌶️', 4);
+CREATE TABLE IF NOT EXISTS inventory_items (
+                                               id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    category_id UUID REFERENCES inventory_categories(id) ON DELETE SET NULL,
+    name VARCHAR(200) NOT NULL,
+    description TEXT,
+    image_url TEXT,
+    quantity DECIMAL(10, 2) NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+    unit VARCHAR(20) NOT NULL DEFAULT 'kg' CHECK (unit IN ('kg', 'gram', 'liter', 'ml', 'pieces', 'dozen')),
+    reorder_level DECIMAL(10, 2) DEFAULT 10,
+    purchase_price DECIMAL(10, 2) NOT NULL CHECK (purchase_price >= 0),
+    supplier_name VARCHAR(200),
+    storage_location VARCHAR(100),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
 
--- ============================================
--- 9. INVENTORY ITEMS
--- ============================================
-CREATE TABLE inventory_items (
-                                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                                 category_id UUID REFERENCES inventory_categories(id) ON DELETE SET NULL,
-                                 name VARCHAR(200) NOT NULL,
-                                 description TEXT,
-                                 image_url TEXT,
-                                 quantity DECIMAL(10, 2) NOT NULL DEFAULT 0 CHECK (quantity >= 0),
-                                 unit VARCHAR(20) NOT NULL DEFAULT 'kg' CHECK (unit IN ('kg', 'gram', 'liter', 'ml', 'pieces', 'dozen')),
-                                 reorder_level DECIMAL(10, 2) DEFAULT 10,
-                                 purchase_price DECIMAL(10, 2) NOT NULL CHECK (purchase_price >= 0),
-                                 supplier_name VARCHAR(200),
-                                 storage_location VARCHAR(100),
-                                 is_active BOOLEAN DEFAULT true,
-                                 created_at TIMESTAMPTZ DEFAULT NOW(),
-                                 updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_inventory_category ON inventory_items(category_id);
-CREATE INDEX idx_inventory_active ON inventory_items(is_active);
-CREATE INDEX idx_inventory_stock ON inventory_items(quantity);
+CREATE TABLE IF NOT EXISTS inventory_usage (
+                                               id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    inventory_item_id UUID NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
+    quantity_used DECIMAL(10, 2) NOT NULL,
+    cost DECIMAL(10, 2),
+    used_by UUID REFERENCES waiters(id),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+    );
 
 -- ============================================
--- 10. INVENTORY USAGE (Tracking)
+-- 6. ATTENDANCE SYSTEM
 -- ============================================
-CREATE TABLE inventory_usage (
-                                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                                 inventory_item_id UUID NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
-                                 quantity_used DECIMAL(10, 2) NOT NULL,
-                                 cost DECIMAL(10, 2),
-                                 used_by UUID REFERENCES waiters(id),
-                                 notes TEXT,
-                                 created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_inventory_usage_item ON inventory_usage(inventory_item_id);
-CREATE INDEX idx_inventory_usage_date ON inventory_usage(created_at DESC);
+CREATE TABLE IF NOT EXISTS waiter_shifts (
+                                             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    waiter_id UUID NOT NULL REFERENCES waiters(id) ON DELETE CASCADE,
+    clock_in TIMESTAMPTZ NOT NULL,
+    clock_out TIMESTAMPTZ,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+    );
 
 -- ============================================
--- 11. WAITER SHIFTS (Attendance)
+-- 7. ANALYTICS & REPORTING
 -- ============================================
-CREATE TABLE waiter_shifts (
-                               id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                               waiter_id UUID NOT NULL REFERENCES waiters(id) ON DELETE CASCADE,
-                               clock_in TIMESTAMPTZ NOT NULL,
-                               clock_out TIMESTAMPTZ,
-                               notes TEXT,
-                               created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_shifts_waiter ON waiter_shifts(waiter_id);
-CREATE INDEX idx_shifts_date ON waiter_shifts(clock_in DESC);
-
--- ============================================
--- 12. DAILY SUMMARIES (For Optimized Reports)
--- ============================================
-CREATE TABLE daily_summaries (
-                                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                                 date DATE NOT NULL UNIQUE,
-                                 total_revenue DECIMAL(12, 2) DEFAULT 0,
-                                 total_orders INTEGER DEFAULT 0,
-                                 total_tax DECIMAL(10, 2) DEFAULT 0,
-                                 inventory_cost DECIMAL(10, 2) DEFAULT 0,
-                                 net_profit DECIMAL(12, 2) DEFAULT 0,
-                                 created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_daily_summaries_date ON daily_summaries(date DESC);
+CREATE TABLE IF NOT EXISTS daily_summaries (
+                                               id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    date DATE NOT NULL UNIQUE,
+    total_revenue DECIMAL(12, 2) DEFAULT 0,
+    total_orders INTEGER DEFAULT 0,
+    total_tax DECIMAL(10, 2) DEFAULT 0,
+    inventory_cost DECIMAL(10, 2) DEFAULT 0,
+    net_profit DECIMAL(12, 2) DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+    );
 
 -- ============================================
--- FUNCTIONS & TRIGGERS
+-- INDEXES (Performance Optimization)
 -- ============================================
 
--- Auto-update updated_at timestamp
+-- Orders indexes
+CREATE INDEX IF NOT EXISTS idx_orders_status_created ON orders(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_waiter_status ON orders(waiter_id, status) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_orders_table_status ON orders(table_id, status) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_orders_type_status ON orders(order_type, status, created_at DESC);
+
+-- Order items indexes
+CREATE INDEX IF NOT EXISTS idx_order_items_order_menu ON order_items(order_id, menu_item_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_status ON order_items(status) WHERE status != 'served';
+
+-- Menu indexes
+CREATE INDEX IF NOT EXISTS idx_menu_items_available_category ON menu_items(is_available, category_id) WHERE is_available = true;
+CREATE INDEX IF NOT EXISTS idx_menu_items_name_search ON menu_items USING gin(to_tsvector('english', name));
+
+-- Inventory indexes
+CREATE INDEX IF NOT EXISTS idx_inventory_low_stock ON inventory_items(quantity, reorder_level) WHERE is_active = true AND quantity <= reorder_level;
+CREATE INDEX IF NOT EXISTS idx_inventory_usage_date ON inventory_usage(created_at DESC, inventory_item_id);
+
+-- Waiter indexes
+CREATE INDEX IF NOT EXISTS idx_shifts_waiter_date ON waiter_shifts(waiter_id, clock_in DESC);
+CREATE INDEX IF NOT EXISTS idx_shifts_active ON waiter_shifts(waiter_id) WHERE clock_out IS NULL;
+
+-- Table indexes
+CREATE INDEX IF NOT EXISTS idx_tables_status ON restaurant_tables(status);
+CREATE INDEX IF NOT EXISTS idx_tables_number ON restaurant_tables(table_number);
+
+-- ============================================
+-- AUTO-UPDATE TRIGGERS
+-- ============================================
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -287,7 +235,11 @@ CREATE TRIGGER update_inventory_items_updated_at
     BEFORE UPDATE ON inventory_items
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- Increment waiter stats on order completion
+-- ============================================
+-- BUSINESS LOGIC FUNCTIONS
+-- ============================================
+
+-- Increment waiter stats
 CREATE OR REPLACE FUNCTION increment_waiter_stats(
     p_waiter_id UUID,
     p_orders INTEGER,
@@ -298,22 +250,42 @@ BEGIN
 UPDATE waiters
 SET
     total_orders = total_orders + p_orders,
-    total_revenue = total_revenue + p_revenue
+    total_revenue = total_revenue + p_revenue,
+    updated_at = NOW()
 WHERE id = p_waiter_id;
 END;
 $$ LANGUAGE plpgsql;
 
--- Auto clock-in waiter when assigned to order
+-- Get table status
+CREATE OR REPLACE FUNCTION get_table_status(p_table_id UUID)
+RETURNS TABLE (
+    status VARCHAR,
+    current_order_id UUID,
+    waiter_id UUID,
+    order_amount DECIMAL
+) AS $$
+BEGIN
+RETURN QUERY
+SELECT
+    t.status,
+    t.current_order_id,
+    t.waiter_id,
+    o.total_amount
+FROM restaurant_tables t
+         LEFT JOIN orders o ON t.current_order_id = o.id
+WHERE t.id = p_table_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Auto clock-in waiter
 CREATE OR REPLACE FUNCTION auto_clock_in_waiter()
 RETURNS TRIGGER AS $$
 BEGIN
     IF NEW.waiter_id IS NOT NULL THEN
-        -- Check if waiter is not already on duty
 UPDATE waiters
 SET is_on_duty = true
 WHERE id = NEW.waiter_id AND is_on_duty = false;
 
--- Create shift record if not exists today
 INSERT INTO waiter_shifts (waiter_id, clock_in)
 SELECT NEW.waiter_id, NOW()
     WHERE NOT EXISTS (
@@ -332,159 +304,110 @@ CREATE TRIGGER auto_clock_in_on_order
     FOR EACH ROW EXECUTE FUNCTION auto_clock_in_waiter();
 
 -- ============================================
+-- AUTO-CLEANUP (Runs daily at midnight)
+-- ============================================
+CREATE OR REPLACE FUNCTION cleanup_old_orders()
+RETURNS INTEGER AS $$
+DECLARE
+deleted_count INTEGER;
+BEGIN
+WITH deleted AS (
+DELETE FROM orders
+WHERE status = 'completed'
+  AND created_at < NOW() - INTERVAL '30 days'
+    RETURNING id
+    )
+SELECT COUNT(*) INTO deleted_count FROM deleted;
+
+RETURN deleted_count;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Schedule cleanup (PostgreSQL cron extension - optional)
+-- If you don't have pg_cron, run this monthly manually
+-- SELECT cron.schedule('cleanup-old-orders', '0 0 * * *', 'SELECT cleanup_old_orders()');
+
+-- ============================================
 -- ROW LEVEL SECURITY (RLS)
 -- ============================================
-
--- Enable RLS on all tables
-ALTER TABLE admin_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE menu_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE menu_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE restaurant_tables ENABLE ROW LEVEL SECURITY;
 ALTER TABLE waiters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE inventory_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory_usage ENABLE ROW LEVEL SECURITY;
 ALTER TABLE waiter_shifts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE daily_summaries ENABLE ROW LEVEL SECURITY;
 
--- Public read access for menu (for customer app)
-CREATE POLICY "Public can read menu categories"
-    ON menu_categories FOR SELECT
-                                      USING (is_active = true);
+-- Public read for menu
+CREATE POLICY "Anyone can view menu categories" ON menu_categories FOR SELECT USING (is_active = true);
+CREATE POLICY "Anyone can view menu items" ON menu_items FOR SELECT USING (is_available = true);
 
-CREATE POLICY "Public can read menu items"
-    ON menu_items FOR SELECT
-                                 USING (is_available = true);
-
--- Authenticated users can do everything (for staff/admin)
-CREATE POLICY "Authenticated users full access"
-    ON menu_categories FOR ALL
-    USING (auth.role() = 'authenticated');
-
-CREATE POLICY "Authenticated users full access items"
-    ON menu_items FOR ALL
-    USING (auth.role() = 'authenticated');
-
-CREATE POLICY "Authenticated users full access tables"
-    ON restaurant_tables FOR ALL
-    USING (auth.role() = 'authenticated');
-
-CREATE POLICY "Authenticated users full access waiters"
-    ON waiters FOR ALL
-    USING (auth.role() = 'authenticated');
-
-CREATE POLICY "Authenticated users full access orders"
-    ON orders FOR ALL
-    USING (auth.role() = 'authenticated');
-
-CREATE POLICY "Authenticated users full access order_items"
-    ON order_items FOR ALL
-    USING (auth.role() = 'authenticated');
-
-CREATE POLICY "Authenticated users full access inventory"
-    ON inventory_items FOR ALL
-    USING (auth.role() = 'authenticated');
+-- Service role full access
+CREATE POLICY "Service role full access menu_categories" ON menu_categories FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access menu_items" ON menu_items FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access tables" ON restaurant_tables FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access waiters" ON waiters FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access orders" ON orders FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access order_items" ON order_items FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access inventory_items" ON inventory_items FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access inventory_usage" ON inventory_usage FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access waiter_shifts" ON waiter_shifts FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access daily_summaries" ON daily_summaries FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- ============================================
--- VIEWS (For Complex Queries)
+-- SAMPLE DATA (Optional - for testing)
 -- ============================================
+INSERT INTO menu_categories (name, icon, display_order) VALUES
+                                                            ('Fast Food', '🍔', 1),
+                                                            ('Main Course', '🍛', 2),
+                                                            ('Beverages', '☕', 3),
+                                                            ('Desserts', '🍰', 4)
+    ON CONFLICT DO NOTHING;
 
--- Current day active orders
-CREATE OR REPLACE VIEW today_active_orders AS
+INSERT INTO inventory_categories (name, icon, display_order) VALUES
+                                                                 ('Vegetables', '🥬', 1),
+                                                                 ('Meat', '🍖', 2),
+                                                                 ('Dairy', '🥛', 3),
+                                                                 ('Spices', '🌶️', 4)
+    ON CONFLICT DO NOTHING;
+
+INSERT INTO restaurant_tables (table_number, capacity, section) VALUES
+                                                                    (1, 4, 'Main'),
+                                                                    (2, 2, 'Main'),
+                                                                    (3, 6, 'VIP'),
+                                                                    (4, 4, 'Outdoor')
+    ON CONFLICT DO NOTHING;
+
+-- ============================================
+-- VERIFICATION QUERIES
+-- ============================================
+SELECT 'Schema setup complete!' as status;
+SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_schema = 'public';
+SELECT COUNT(*) as index_count FROM pg_indexes WHERE schemaname = 'public';
+
+-- Check sample data
 SELECT
-    o.*,
-    t.table_number,
-    w.name as waiter_name
-FROM orders o
-         LEFT JOIN restaurant_tables t ON o.table_id = t.id
-         LEFT JOIN waiters w ON o.waiter_id = w.id
-WHERE o.created_at::DATE = CURRENT_DATE
-AND o.status = 'pending'
-ORDER BY o.created_at DESC;
+    (SELECT COUNT(*) FROM menu_categories) as categories,
+    (SELECT COUNT(*) FROM inventory_categories) as inventory_categories,
+    (SELECT COUNT(*) FROM restaurant_tables) as tables;
 
--- Low stock inventory
-CREATE OR REPLACE VIEW low_stock_items AS
+-- ============================================
+-- MAINTENANCE COMMANDS (Run monthly)
+-- ============================================
+-- 1. Clean old orders (keep 30 days):
+SELECT cleanup_old_orders();
+
+-- 2. Update statistics:
+ANALYZE orders;
+ANALYZE order_items;
+ANALYZE menu_items;
+ANALYZE inventory_items;
+
+-- 3. Check database size:
 SELECT
-    i.*,
-    c.name as category_name,
-    (i.quantity * i.purchase_price) as stock_value
-FROM inventory_items i
-         LEFT JOIN inventory_categories c ON i.category_id = c.id
-WHERE i.is_active = true
-  AND i.quantity <= i.reorder_level
-ORDER BY i.quantity ASC;
-
--- Today's waiter performance
-CREATE OR REPLACE VIEW today_waiter_performance AS
-SELECT
-    w.id,
-    w.name,
-    w.profile_pic,
-    COUNT(o.id) as orders_today,
-    COALESCE(SUM(o.total_amount), 0) as revenue_today
-FROM waiters w
-         LEFT JOIN orders o ON w.id = o.waiter_id
-    AND o.created_at::DATE = CURRENT_DATE
-    AND o.status = 'completed'
-WHERE w.is_active = true
-GROUP BY w.id, w.name, w.profile_pic
-ORDER BY revenue_today DESC;
-
--- ============================================
--- INDEXES FOR PERFORMANCE
--- ============================================
-
--- Composite indexes for common queries
-CREATE INDEX idx_orders_status_date ON orders(status, created_at DESC);
-CREATE INDEX idx_orders_waiter_date ON orders(waiter_id, created_at DESC);
-CREATE INDEX idx_inventory_category_active ON inventory_items(category_id, is_active);
-
--- Full text search on menu items
-CREATE INDEX idx_menu_items_name_search ON menu_items USING gin(to_tsvector('english', name));
-
--- ============================================
--- COMMENTS (Documentation)
--- ============================================
-
-COMMENT ON TABLE orders IS 'Main orders table supporting both dine-in and delivery';
-COMMENT ON TABLE inventory_items IS 'Inventory management with automatic low-stock alerts';
-COMMENT ON TABLE daily_summaries IS 'Pre-calculated daily metrics for fast reporting';
-COMMENT ON FUNCTION increment_waiter_stats IS 'Updates waiter performance metrics';
-COMMENT ON FUNCTION auto_clock_in_waiter IS 'Automatically clocks in waiter when assigned to order';
-
--- ============================================
--- END OF SCHEMA
--- ============================================
--- ```
---
--- ---
---
--- ## 📊 **Schema Summary:**
---
--- | Table | Purpose | Key Features |
--- |-------|---------|-------------|
--- | `admin_config` | Admin authentication | Single row, password hash |
--- | `menu_categories` | Menu organization | Icons, ordering |
--- | `menu_items` | Menu products | Pricing, availability |
--- | `restaurant_tables` | Table management | Status tracking |
--- | `waiters` | Staff management | Performance stats |
--- | `orders` | Order processing | Dine-in + Delivery |
--- | `order_items` | Order details | Menu item quantities |
--- | `inventory_categories` | Inventory grouping | Icons, ordering |
--- | `inventory_items` | Stock management | Reorder levels |
--- | `inventory_usage` | Usage tracking | Cost tracking |
--- | `waiter_shifts` | Attendance | Clock in/out |
--- | `daily_summaries` | Report optimization | Pre-calculated stats |
---
--- ---
---
--- ## 🔗 **Relationships:**
--- ```
--- menu_categories → menu_items
--- restaurant_tables ← orders → waiters
--- orders → order_items → menu_items
--- inventory_categories → inventory_items
--- inventory_items → inventory_usage
--- waiters → waiter_shifts
+    pg_size_pretty(pg_database_size(current_database())) as db_size,
+    pg_size_pretty(pg_total_relation_size('orders')) as orders_size,
+    (SELECT COUNT(*) FROM orders WHERE status = 'completed') as completed_orders;

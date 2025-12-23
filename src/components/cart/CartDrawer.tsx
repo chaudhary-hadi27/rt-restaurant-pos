@@ -1,10 +1,9 @@
-// src/components/cart/CartDrawer.tsx
+// src/components/cart/CartDrawer.tsx - THEME FIXED
 'use client'
 
 import { useState } from 'react'
 import { useCart } from '@/lib/store/cart-store'
-import { useTheme } from '@/lib/store/theme-store'
-import { Plus, Minus, X, CheckCircle, Truck, Home, CreditCard, Banknote, Sun, Moon, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Minus, X, CheckCircle, Truck, Home, CreditCard, Banknote, ChevronDown, ChevronUp } from 'lucide-react'
 import { useOrderManagement } from '@/lib/hooks'
 import ReceiptModal from '@/components/features/receipt/ReceiptGenerator'
 
@@ -17,7 +16,6 @@ interface CartDrawerProps {
 
 export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDrawerProps) {
     const cart = useCart()
-    const { theme, toggleTheme } = useTheme()
     const { createOrder, loading } = useOrderManagement()
     const [showReceipt, setShowReceipt] = useState<any>(null)
     const [orderType, setOrderType] = useState<'dine-in' | 'delivery'>('dine-in')
@@ -27,11 +25,7 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
 
     const placeOrder = async () => {
         if (cart.items.length === 0) return
-
-        // Validation for dine-in
         if (orderType === 'dine-in' && (!cart.tableId || !cart.waiterId)) return
-
-        // Validation for delivery - payment required
         if (orderType === 'delivery' && !paymentMethod) return
 
         const subtotal = cart.subtotal()
@@ -47,7 +41,6 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
             total_amount: total,
             notes: cart.notes || null,
             order_type: orderType,
-            // ✅ Payment method only for delivery (dine-in set on completion)
             payment_method: orderType === 'delivery' ? paymentMethod : null,
             receipt_printed: false
         }
@@ -95,25 +88,9 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-[var(--border)] bg-[var(--card)]">
                     <h2 className="text-xl font-bold text-[var(--fg)]">Your Order</h2>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={toggleTheme}
-                            className="p-2 hover:bg-[var(--bg)] rounded-lg transition-colors"
-                            aria-label="Toggle theme"
-                        >
-                            {theme === 'dark' ? (
-                                <Sun className="w-5 h-5 text-yellow-500" />
-                            ) : (
-                                <Moon className="w-5 h-5 text-blue-600" />
-                            )}
-                        </button>
-                        <button
-                            onClick={onClose}
-                            className="p-2 hover:bg-[var(--bg)] rounded-lg transition-colors"
-                        >
-                            <X className="w-5 h-5 text-[var(--muted)]" />
-                        </button>
-                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-[var(--bg)] rounded-lg transition-colors">
+                        <X className="w-5 h-5 text-[var(--muted)]" />
+                    </button>
                 </div>
 
                 {/* Content */}
@@ -199,9 +176,6 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                                     value={cart.tableId}
                                     onChange={e => cart.setTable(e.target.value)}
                                     className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-sm text-[var(--fg)] focus:ring-2 focus:ring-blue-600 focus:outline-none"
-                                    style={{
-                                        colorScheme: theme === 'dark' ? 'dark' : 'light'
-                                    }}
                                 >
                                     <option value="">Select table</option>
                                     {tables.filter(t => t.status === 'available' || t.status === 'occupied').map(t => (
@@ -219,9 +193,6 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                                     value={cart.waiterId}
                                     onChange={e => cart.setWaiter(e.target.value)}
                                     className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-sm text-[var(--fg)] focus:ring-2 focus:ring-blue-600 focus:outline-none"
-                                    style={{
-                                        colorScheme: theme === 'dark' ? 'dark' : 'light'
-                                    }}
                                 >
                                     <option value="">Select waiter</option>
                                     {waiters.map(w => (
@@ -325,7 +296,7 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                         </div>
                     )}
 
-                    {/* Empty Cart Message */}
+                    {/* Empty Cart */}
                     {cart.items.length === 0 && (
                         <div className="flex flex-col items-center justify-center py-12">
                             <div className="text-6xl mb-4">🛒</div>
@@ -341,22 +312,16 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                         <div className="space-y-2 mb-4">
                             <div className="flex justify-between text-sm">
                                 <span className="text-[var(--muted)]">Subtotal</span>
-                                <span className="font-medium text-[var(--fg)]">
-                                    PKR {cart.subtotal().toFixed(2)}
-                                </span>
+                                <span className="font-medium text-[var(--fg)]">PKR {cart.subtotal().toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-[var(--muted)]">Tax (5%)</span>
-                                <span className="font-medium text-[var(--fg)]">
-                                    PKR {cart.tax().toFixed(2)}
-                                </span>
+                                <span className="font-medium text-[var(--fg)]">PKR {cart.tax().toFixed(2)}</span>
                             </div>
                             {orderType === 'delivery' && details.delivery_charges > 0 && (
                                 <div className="flex justify-between text-sm">
                                     <span className="text-[var(--muted)]">Delivery</span>
-                                    <span className="font-medium text-[var(--fg)]">
-                                        PKR {details.delivery_charges}
-                                    </span>
+                                    <span className="font-medium text-[var(--fg)]">PKR {details.delivery_charges}</span>
                                 </div>
                             )}
                             <div className="flex justify-between text-lg font-bold pt-2 border-t border-[var(--border)]">

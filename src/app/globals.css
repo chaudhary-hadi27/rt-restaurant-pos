@@ -137,53 +137,45 @@
     background: var(--fg-muted);
 }
 
+
+
 /* ============================================
-   MOBILE OPTIMIZATIONS
+   MOBILE FIXES - Every Device Friendly
    ============================================ */
 
+/* Touch-friendly tap targets */
 @media (max-width: 768px) {
-    * {
-        -webkit-tap-highlight-color: transparent;
+    button, a, [role="button"], select, input {
+        min-height: 44px;
+        min-width: 44px;
     }
 
-    /* Prevent iOS zoom on input focus */
+    /* Prevent zoom on input focus (iOS) */
     input, select, textarea {
         font-size: 16px !important;
     }
 
-    /* iOS touch target size */
-    button, a, [role="button"] {
-        min-height: 44px;
-        min-width: 44px;
+    /* Smooth scrolling */
+    * {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Fix select dropdowns in dark mode */
+    select {
+        background-color: var(--bg);
+        color: var(--fg);
+    }
+
+    select option {
+        background-color: var(--card);
+        color: var(--fg);
     }
 }
 
-
-
-/*@import "tailwindcss";*/
-
-/*:root {*/
-/*    --bg: #0a0a0a;*/
-/*    --card: #141414;*/
-/*    --border: #1f1f1f;*/
-/*    --fg: #ffffff;*/
-/*    --muted: #888888;*/
-/*}*/
-
-/*:root.light {*/
-/*    --bg: #ffffff;*/
-/*    --card: #f8f9fa;*/
-/*    --border: #e5e7eb;*/
-/*    --fg: #0a0a0a;*/
-/*    --muted: #6b7280;*/
-/*}*/
-
-/*.scrollbar-hide::-webkit-scrollbar { display: none; }*/
-/*.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }*/
-
-/*!* Mobile touch improvements *!*/
-/*@media (max-width: 768px) {*/
-/*    * { -webkit-tap-highlight-color: transparent; }*/
-/*    input, select, textarea { font-size: 16px !important; } !* Prevent zoom on iOS *!*/
-/*    button { min-height: 44px; min-width: 44px; } !* iOS touch target *!*/
-/*}*/
+/* Small mobile (< 375px) */
+@media (max-width: 374px) {
+    .text-xl { font-size: 1.125rem; }
+    .text-2xl { font-size: 1.25rem; }
+    .p-4 { padding: 0.75rem; }
+    .gap-4 { gap: 0.75rem; }
+}

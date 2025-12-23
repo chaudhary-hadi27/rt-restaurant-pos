@@ -1,4 +1,4 @@
-// src/app/admin/(pages)/history/page.tsx - REFACTORED (800 → 190 lines)
+// src/app/admin/(pages)/history/page.tsx - FIXED
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
@@ -16,6 +16,40 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 type Category = 'waiters' | 'menu' | 'inventory' | 'profit'
 type DateRange = 'today' | 'week' | 'month' | 'year'
+
+// ✅ ADD TYPE DEFINITIONS
+type MenuReportItem = {
+    item_name: string
+    price: number
+    available: boolean
+    total_quantity: number
+    total_revenue: number
+}
+
+type WaiterReportItem = {
+    waiter_name: string
+    profile_pic?: string
+    total_orders: number
+    total_items_served: number
+    total_revenue: number
+    top_item?: string
+}
+
+type InventoryReportItem = {
+    item_name: string
+    current_stock: number
+    unit: string
+    purchase_price: number
+    reorder_level: number
+    stock_value: number
+    status: string
+}
+
+type ProfitLossItem = {
+    category: string
+    amount: number
+    type: 'income' | 'expense' | 'neutral' | 'profit' | 'loss'
+}
 
 export default function HistoryPage() {
     const [category, setCategory] = useState<Category>('profit')
@@ -37,52 +71,77 @@ export default function HistoryPage() {
         try {
             if (category === 'waiters') {
                 const { result, comparison: comp } = await loadWaiterReport(startDate, endDate, prevRange)
-                setData(result)
+                const typedResult = result as WaiterReportItem[]
+
+                setData(typedResult)
                 setComparison(comp)
-                setChartData(result.slice(0, 8).map(w => ({ name: w.waiter_name.split(' ')[0], revenue: w.total_revenue, orders: w.total_orders })))
+                setChartData(typedResult.slice(0, 8).map(w => ({
+                    name: w.waiter_name.split(' ')[0],
+                    revenue: w.total_revenue,
+                    orders: w.total_orders
+                })))
                 setStats([
-                    { label: 'Total Waiters', value: result.length, color: '#3b82f6' },
-                    { label: 'Items Served', value: result.reduce((s, w) => s + w.total_items_served, 0), color: '#10b981' },
-                    { label: 'Total Revenue', value: `PKR ${result.reduce((s, w) => s + w.total_revenue, 0).toLocaleString()}`, color: '#f59e0b', trend: comp.change }
+                    { label: 'Total Waiters', value: typedResult.length, color: '#3b82f6' },
+                    { label: 'Items Served', value: typedResult.reduce((s, w) => s + w.total_items_served, 0), color: '#10b981' },
+                    { label: 'Total Revenue', value: `PKR ${typedResult.reduce((s, w) => s + w.total_revenue, 0).toLocaleString()}`, color: '#f59e0b', trend: comp.change }
                 ])
                 setAlerts([])
             } else if (category === 'menu') {
                 const { result, comparison: comp } = await loadMenuReport(startDate, endDate, prevRange)
-                const servedItems = result.filter(r => r.total_quantity > 0)
-                setData(result)
+                const typedResult = result as MenuReportItem[] // ✅ TYPE ASSERTION
+
+                const servedItems = typedResult.filter(r => r.total_quantity > 0) // ✅ NOW TYPESCRIPT KNOWS THE TYPE
+
+                setData(typedResult)
                 setComparison(comp)
-                setChartData(servedItems.slice(0, 8).map(item => ({ name: item.item_name.substring(0, 15), quantity: item.total_quantity, revenue: item.total_revenue })))
-                const notSold = result.filter(r => r.total_quantity === 0)
+                setChartData(servedItems.slice(0, 8).map(item => ({
+                    name: item.item_name.substring(0, 15),
+                    quantity: item.total_quantity,
+                    revenue: item.total_revenue
+                })))
+
+                const notSold = typedResult.filter(r => r.total_quantity === 0)
                 setAlerts(notSold.length > 5 ? [`⚠️ ${notSold.length} items not sold`] : [])
                 setStats([
-                    { label: 'Total Items', value: result.length, color: '#3b82f6' },
+                    { label: 'Total Items', value: typedResult.length, color: '#3b82f6' },
                     { label: 'Items Sold', value: servedItems.length, color: '#10b981', trend: comp.change },
                     { label: 'Not Sold', value: notSold.length, color: '#ef4444' }
                 ])
             } else if (category === 'inventory') {
                 const { result } = await loadInventoryUsage()
-                const lowStock = result.filter(i => i.status === 'Low Stock')
-                setData(result)
+                const typedResult = result as InventoryReportItem[]
+
+                const lowStock = typedResult.filter(i => i.status === 'Low Stock')
+                setData(typedResult)
                 setComparison(null)
-                setChartData(result.slice(0, 8).map(item => ({ name: item.item_name.substring(0, 12), value: item.stock_value })))
+                setChartData(typedResult.slice(0, 8).map(item => ({
+                    name: item.item_name.substring(0, 12),
+                    value: item.stock_value
+                })))
                 setAlerts(lowStock.length > 0 ? [`🔴 ${lowStock.length} items LOW STOCK`] : [])
                 setStats([
-                    { label: 'Total Items', value: result.length, color: '#3b82f6' },
+                    { label: 'Total Items', value: typedResult.length, color: '#3b82f6' },
                     { label: 'Low Stock', value: lowStock.length, color: '#ef4444' },
-                    { label: 'Stock Value', value: `PKR ${result.reduce((s, i) => s + i.stock_value, 0).toLocaleString()}`, color: '#10b981' }
+                    { label: 'Stock Value', value: `PKR ${typedResult.reduce((s, i) => s + i.stock_value, 0).toLocaleString()}`, color: '#10b981' }
                 ])
             } else {
                 const { result: profitData, comparison: comp, netProfit } = await loadProfitLoss(startDate, endDate, prevRange)
-                setData(profitData)
+                const typedResult = profitData as ProfitLossItem[]
+
+                setData(typedResult)
                 setComparison(comp)
-                setChartData(profitData.map(item => ({ name: item.category.substring(0, 15), amount: item.amount })))
+                setChartData(typedResult.map(item => ({
+                    name: item.category.substring(0, 15),
+                    amount: item.amount
+                })))
+
                 const newAlerts = []
                 if (netProfit < 0) newAlerts.push('🔴 Business running at LOSS')
                 if (comp.trend === 'down' && comp.change > 20) newAlerts.push(`⚠️ Revenue dropped ${comp.change.toFixed(1)}%`)
                 setAlerts(newAlerts)
                 setStats([
-                    { label: 'Revenue', value: `PKR ${profitData[0].amount.toLocaleString()}`, color: '#10b981', trend: comp.change },
-                    { label: 'Costs', value: `PKR ${(profitData[2].amount + profitData[3].amount).toLocaleString()}`, color: '#ef4444' },
+                    { label: 'Revenue', value: `PKR ${typedResult[0].amount.toLocaleString()}`, color: '#10b981', trend: comp.change },
+                    { label: 'Costs', value: `PKR ${(typedResult[2].amount + typedResult[3].amount).toLocaleString()}`, color: '#ef4444' },
                     { label: netProfit >= 0 ? 'Profit' : 'Loss', value: `PKR ${Math.abs(netProfit).toLocaleString()}`, color: netProfit >= 0 ? '#10b981' : '#ef4444' }
                 ])
             }
@@ -107,29 +166,29 @@ export default function HistoryPage() {
     const columns = useMemo(() => {
         const configs: Record<Category, any[]> = {
             waiters: [
-                { key: 'waiter', label: 'Waiter', render: (r: any) => (
+                { key: 'waiter', label: 'Waiter', render: (r: WaiterReportItem) => (
                         <div className="flex items-center gap-2">
                             {r.profile_pic ? <img src={r.profile_pic} alt="" className="w-8 h-8 rounded-full" /> :
                                 <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">{r.waiter_name?.[0] || '?'}</div>}
                             <span className="font-medium text-[var(--fg)]">{r.waiter_name || 'N/A'}</span>
                         </div>
                     )},
-                { key: 'total_orders', label: 'Orders', render: (r: any) => <span className="text-[var(--fg)]">{r.total_orders || 0}</span> },
-                { key: 'total_revenue', label: 'Revenue', align: 'right' as const, render: (r: any) => <span className="font-bold text-green-600">PKR {(r.total_revenue || 0).toLocaleString()}</span> }
+                { key: 'total_orders', label: 'Orders', render: (r: WaiterReportItem) => <span className="text-[var(--fg)]">{r.total_orders || 0}</span> },
+                { key: 'total_revenue', label: 'Revenue', align: 'right' as const, render: (r: WaiterReportItem) => <span className="font-bold text-green-600">PKR {(r.total_revenue || 0).toLocaleString()}</span> }
             ],
             menu: [
-                { key: 'item_name', label: 'Item', render: (r: any) => <span className="text-[var(--fg)]">{r.item_name || 'N/A'}</span> },
-                { key: 'total_quantity', label: 'Sold', render: (r: any) => <span className="text-[var(--fg)]">{r.total_quantity || 0}</span> },
-                { key: 'total_revenue', label: 'Revenue', align: 'right' as const, render: (r: any) => <span className="font-bold text-blue-600">PKR {(r.total_revenue || 0).toLocaleString()}</span> }
+                { key: 'item_name', label: 'Item', render: (r: MenuReportItem) => <span className="text-[var(--fg)]">{r.item_name || 'N/A'}</span> },
+                { key: 'total_quantity', label: 'Sold', render: (r: MenuReportItem) => <span className="text-[var(--fg)]">{r.total_quantity || 0}</span> },
+                { key: 'total_revenue', label: 'Revenue', align: 'right' as const, render: (r: MenuReportItem) => <span className="font-bold text-blue-600">PKR {(r.total_revenue || 0).toLocaleString()}</span> }
             ],
             inventory: [
-                { key: 'item_name', label: 'Item', render: (r: any) => <span className="text-[var(--fg)]">{r.item_name || 'N/A'}</span> },
-                { key: 'current_stock', label: 'Stock', render: (r: any) => <span className="text-[var(--fg)]">{r.current_stock || 0} {r.unit || ''}</span> },
-                { key: 'stock_value', label: 'Value', align: 'right' as const, render: (r: any) => <span className="font-bold">PKR {(r.stock_value || 0).toLocaleString()}</span> }
+                { key: 'item_name', label: 'Item', render: (r: InventoryReportItem) => <span className="text-[var(--fg)]">{r.item_name || 'N/A'}</span> },
+                { key: 'current_stock', label: 'Stock', render: (r: InventoryReportItem) => <span className="text-[var(--fg)]">{r.current_stock || 0} {r.unit || ''}</span> },
+                { key: 'stock_value', label: 'Value', align: 'right' as const, render: (r: InventoryReportItem) => <span className="font-bold">PKR {(r.stock_value || 0).toLocaleString()}</span> }
             ],
             profit: [
-                { key: 'category', label: 'Category', render: (r: any) => <span className="text-[var(--fg)]">{r.category || 'N/A'}</span> },
-                { key: 'amount', label: 'Amount', align: 'right' as const, render: (r: any) => {
+                { key: 'category', label: 'Category', render: (r: ProfitLossItem) => <span className="text-[var(--fg)]">{r.category || 'N/A'}</span> },
+                { key: 'amount', label: 'Amount', align: 'right' as const, render: (r: ProfitLossItem) => {
                         const color = r.type === 'income' || r.type === 'profit' ? 'text-green-600' : r.type === 'expense' || r.type === 'loss' ? 'text-red-600' : 'text-gray-600'
                         return <span className={`font-bold text-lg ${color}`}>PKR {(r.amount || 0).toLocaleString()}</span>
                     }}
