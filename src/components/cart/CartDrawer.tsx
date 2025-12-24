@@ -1,4 +1,4 @@
-// src/components/cart/CartDrawer.tsx - SMART VERSION
+// src/components/cart/CartDrawer.tsx - QUANTITY INPUT ADDED
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -24,12 +24,15 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
     const [showDetails, setShowDetails] = useState(false)
     const [details, setDetails] = useState({ customer_name: '', customer_phone: '', delivery_address: '', delivery_charges: 0 })
 
-    // 🔥 NEW: Table occupancy detection
+    // Table occupancy detection
     const [tableWarning, setTableWarning] = useState<{ show: boolean; tableNumber: number; currentOrder?: any } | null>(null)
     const [confirmAddMore, setConfirmAddMore] = useState(false)
+
+    // ✅ NEW: Track quantity editing state
+    const [editingQuantity, setEditingQuantity] = useState<{ [key: string]: string }>({})
+
     const supabase = createClient()
 
-    // 🔥 Check table status when table is selected
     useEffect(() => {
         if (cart.tableId && orderType === 'dine-in') {
             checkTableOccupancy(cart.tableId)
@@ -41,7 +44,6 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
         if (!selectedTable) return
 
         if (selectedTable.status === 'occupied') {
-            // Get current order
             const { data: existingOrder } = await supabase
                 .from('orders')
                 .select('id, total_amount, order_items(quantity, menu_items(name))')
@@ -68,12 +70,41 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
         setTableWarning(null)
     }
 
+    // ✅ NEW: Handle quantity input change
+    const handleQuantityChange = (itemId: string, value: string) => {
+        // Allow only numbers
+        if (value === '' || /^\d+$/.test(value)) {
+            setEditingQuantity({ ...editingQuantity, [itemId]: value })
+        }
+    }
+
+    // ✅ NEW: Handle quantity input blur (when user finishes editing)
+    const handleQuantityBlur = (itemId: string) => {
+        const value = editingQuantity[itemId]
+        if (value && value !== '') {
+            const num = parseInt(value)
+            if (num > 0 && num <= 999) {
+                cart.updateQuantity(itemId, num)
+            } else if (num > 999) {
+                cart.updateQuantity(itemId, 999)
+            }
+        }
+        // Clear editing state
+        setEditingQuantity({ ...editingQuantity, [itemId]: '' })
+    }
+
+    // ✅ NEW: Handle Enter key in quantity input
+    const handleQuantityKeyDown = (e: React.KeyboardEvent, itemId: string) => {
+        if (e.key === 'Enter') {
+            (e.target as HTMLInputElement).blur()
+        }
+    }
+
     const placeOrder = async () => {
         if (cart.items.length === 0) return
         if (orderType === 'dine-in' && (!cart.tableId || !cart.waiterId)) return
         if (orderType === 'delivery' && !paymentMethod) return
 
-        // 🔥 Check if adding to occupied table without confirmation
         if (orderType === 'dine-in' && tableWarning?.show && !confirmAddMore) {
             return
         }
@@ -127,6 +158,7 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
             setDetails({ customer_name: '', customer_phone: '', delivery_address: '', delivery_charges: 0 })
             setConfirmAddMore(false)
             setTableWarning(null)
+            setEditingQuantity({})
         }
     }
 
@@ -238,7 +270,7 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                                 </select>
                             </div>
 
-                            {/* 🔥 TABLE OCCUPANCY WARNING */}
+                            {/* TABLE OCCUPANCY WARNING */}
                             {tableWarning?.show && (
                                 <div className="p-4 bg-yellow-500/10 border-2 border-yellow-600 rounded-lg">
                                     <div className="flex items-start gap-3">
@@ -349,7 +381,7 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                         </>
                     )}
 
-                    {/* Cart Items */}
+                    {/* ✅ IMPROVED: Cart Items with Editable Quantity */}
                     {cart.items.length > 0 && (
                         <div className="space-y-2">
                             <h3 className="text-sm font-semibold text-[var(--fg)] px-1">Order Items</h3>
@@ -361,25 +393,38 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                                             PKR {(item.price * item.quantity).toLocaleString()}
                                         </span>
                                     </div>
+
+                                    {/* ✅ NEW: Quantity Controls with Input */}
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={() => cart.updateQuantity(item.id, item.quantity - 1)}
-                                            className="p-1.5 bg-[var(--card)] border border-[var(--border)] rounded hover:bg-[var(--bg)] transition-colors"
+                                            className="p-1.5 bg-[var(--card)] border border-[var(--border)] rounded hover:bg-red-600 hover:text-white hover:border-red-600 transition-all active:scale-95"
                                         >
-                                            <Minus className="w-4 h-4 text-[var(--fg)]" />
+                                            <Minus className="w-4 h-4" />
                                         </button>
-                                        <span className="px-3 py-1 font-semibold text-sm text-[var(--fg)]">
-                                            {item.quantity}
-                                        </span>
+
+                                        {/* ✅ Editable Quantity Input */}
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            value={editingQuantity[item.id] ?? item.quantity}
+                                            onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                                            onBlur={() => handleQuantityBlur(item.id)}
+                                            onKeyDown={(e) => handleQuantityKeyDown(e, item.id)}
+                                            className="w-16 px-2 py-1 text-center font-semibold text-sm text-[var(--fg)] bg-[var(--card)] border border-[var(--border)] rounded focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                                            maxLength={3}
+                                        />
+
                                         <button
                                             onClick={() => cart.updateQuantity(item.id, item.quantity + 1)}
-                                            className="p-1.5 bg-[var(--card)] border border-[var(--border)] rounded hover:bg-[var(--bg)] transition-colors"
+                                            className="p-1.5 bg-[var(--card)] border border-[var(--border)] rounded hover:bg-green-600 hover:text-white hover:border-green-600 transition-all active:scale-95"
                                         >
-                                            <Plus className="w-4 h-4 text-[var(--fg)]" />
+                                            <Plus className="w-4 h-4" />
                                         </button>
+
                                         <button
                                             onClick={() => cart.removeItem(item.id)}
-                                            className="ml-auto text-xs text-red-600 font-medium hover:text-red-700 transition-colors"
+                                            className="ml-auto px-3 py-1 text-xs text-red-600 font-medium hover:bg-red-600 hover:text-white rounded transition-all active:scale-95"
                                         >
                                             Remove
                                         </button>
