@@ -1,3 +1,5 @@
+// File: components/UnifiedSidebar.tsx
+
 "use client"
 
 import Link from "next/link"
@@ -19,7 +21,8 @@ import {
     History,
     Settings,
     Download,
-    Database
+    Database,
+    Menu
 } from "lucide-react"
 import { useTheme } from "@/lib/store/theme-store"
 import StorageInfo from "@/components/ui/StorageInfo"
@@ -50,11 +53,7 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
     const [open, setOpen] = useState(false)
     const [hydrated, setHydrated] = useState(false)
     const [touchStart, setTouchStart] = useState(0)
-
-    // Storage info modal
     const [showStorage, setShowStorage] = useState(false)
-
-    // PWA install
     const [installPrompt, setInstallPrompt] = useState<any>(null)
 
     useEffect(() => setHydrated(true), [])
@@ -97,14 +96,25 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
 
     return (
         <>
-            {/* Swipe Zone */}
+            {/* Mobile Toggle Button - Fixed Top Left */}
+            <button
+                onClick={() => setOpen(true)}
+                className="lg:hidden fixed top-4 left-4 z-40 p-2.5 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl active:scale-95 transition-all group"
+                aria-label="Open menu"
+            >
+                <div className="absolute inset-0 rounded-xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <Menu className="w-5 h-5 relative z-10" />
+                <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+            </button>
+
+            {/* Swipe Zone - Mobile Only */}
             <div
                 className="lg:hidden fixed left-0 top-0 w-8 h-full z-30"
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
             />
 
-            {/* Overlay */}
+            {/* Overlay - Mobile Only */}
             {open && (
                 <div
                     className="lg:hidden fixed inset-0 bg-black/50 z-40"
@@ -112,7 +122,7 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                 />
             )}
 
-            {/* Sidebar */}
+            {/* Main Sidebar */}
             <aside
                 className={`fixed top-0 left-0 h-screen w-16 bg-[var(--card)] border-r border-[var(--border)] flex flex-col z-50 transition-transform lg:translate-x-0 ${
                     open ? "translate-x-0" : "-translate-x-full"
@@ -120,18 +130,19 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
             >
+                {/* Logo */}
                 <Link
                     href={isAdmin ? "/admin" : "/"}
-                    className="h-16 flex items-center justify-center border-b border-[var(--border)]"
+                    className="h-16 flex items-center justify-center border-b border-[var(--border)] flex-shrink-0"
                     onClick={() => setOpen(false)}
                 >
-                    <div className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold text-lg shadow-lg">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-lg hover:shadow-xl transition-shadow">
                         RT
                     </div>
                 </Link>
 
                 {/* Navigation */}
-                <nav className="flex-1 py-2 px-2 space-y-1 scrollbar-hide">
+                <nav className="flex-1 py-2 px-2 space-y-1 overflow-y-auto scrollbar-hide">
                     {items.map(item => {
                         const Icon = item.icon
                         const active =
@@ -148,9 +159,9 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                                     className="block"
                                 >
                                     <div
-                                        className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                                        className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 active:scale-95 ${
                                             active
-                                                ? "bg-blue-600 text-white shadow-lg"
+                                                ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg"
                                                 : "text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)]"
                                         }`}
                                     >
@@ -167,13 +178,13 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                 </nav>
 
                 {/* Bottom Actions */}
-                <div className="p-2 border-t border-[var(--border)] space-y-1">
-                    {/* Install */}
+                <div className="p-2 border-t border-[var(--border)] space-y-1 flex-shrink-0">
+                    {/* Install PWA */}
                     {installPrompt && (
                         <div className="relative group">
                             <button
                                 onClick={handleInstall}
-                                className="w-12 h-12 rounded-lg flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all duration-200"
+                                className="w-12 h-12 rounded-xl flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all duration-200 active:scale-95"
                             >
                                 <Download className="w-5 h-5" />
                             </button>
@@ -183,14 +194,14 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                         </div>
                     )}
 
-                    {/* Command */}
+                    {/* Command Palette */}
                     <div className="relative group">
                         <button
                             onClick={() => {
                                 onCommandOpen?.()
                                 setOpen(false)
                             }}
-                            className="w-12 h-12 rounded-lg flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all duration-200"
+                            className="w-12 h-12 rounded-xl flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all duration-200 active:scale-95"
                         >
                             <Command className="w-5 h-5" />
                         </button>
@@ -199,11 +210,11 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                         </span>
                     </div>
 
-                    {/* Theme */}
+                    {/* Theme Toggle */}
                     <div className="relative group">
                         <button
                             onClick={toggleTheme}
-                            className="w-12 h-12 rounded-lg flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all duration-200"
+                            className="w-12 h-12 rounded-xl flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all duration-200 active:scale-95"
                         >
                             {theme === "dark" ? (
                                 <Sun className="w-5 h-5 text-yellow-500" />
@@ -223,7 +234,7 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                                 setShowStorage(true)
                                 setOpen(false)
                             }}
-                            className="w-12 h-12 rounded-lg flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all duration-200"
+                            className="w-12 h-12 rounded-xl flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all duration-200 active:scale-95"
                         >
                             <Database className="w-5 h-5" />
                         </button>
@@ -232,14 +243,14 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                         </span>
                     </div>
 
-                    {/* Admin Toggle */}
+                    {/* Admin/Restaurant Toggle */}
                     <div className="relative group">
                         <Link
                             href={isAdmin ? "/" : "/admin"}
                             onClick={() => setOpen(false)}
                             className="block"
                         >
-                            <div className="w-12 h-12 rounded-lg flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all duration-200">
+                            <div className="w-12 h-12 rounded-xl flex items-center justify-center text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)] transition-all duration-200 active:scale-95">
                                 {isAdmin ? (
                                     <UtensilsCrossed className="w-5 h-5" />
                                 ) : (
