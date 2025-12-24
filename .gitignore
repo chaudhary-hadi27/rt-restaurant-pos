@@ -11,6 +11,7 @@
 !.yarn/versions
 .idea
 pnpm-lock.yaml
+backup
 
 # testing
 /coverage

@@ -105,6 +105,38 @@
     --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.6);
 }
 
+/*!* ============================================*/
+/*   SCROLLBAR STYLES*/
+/*   ============================================ *!*/
+
+/*.scrollbar-hide::-webkit-scrollbar {*/
+/*    display: none;*/
+/*}*/
+
+/*.scrollbar-hide {*/
+/*    -ms-overflow-style: none;*/
+/*    scrollbar-width: none;*/
+/*}*/
+
+/*!* Custom Scrollbar *!*/
+/*::-webkit-scrollbar {*/
+/*    width: 8px;*/
+/*    height: 8px;*/
+/*}*/
+
+/*::-webkit-scrollbar-track {*/
+/*    background: var(--bg-secondary);*/
+/*}*/
+
+/*::-webkit-scrollbar-thumb {*/
+/*    background: var(--border-hover);*/
+/*    border-radius: 0.5rem;*/
+/*}*/
+
+/*::-webkit-scrollbar-thumb:hover {*/
+/*    background: var(--fg-muted);*/
+/*}*/
+
 
 
 /* ✅ Extra small screens (320px - 374px) */

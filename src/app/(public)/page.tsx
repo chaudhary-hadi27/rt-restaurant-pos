@@ -1,4 +1,4 @@
-// src/app/(public)/page.tsx - REFACTORED (200 → 120 lines)
+// src/app/(public)/page.tsx - THEME + RESPONSIVE FIX
 'use client'
 
 import { useState, useMemo } from 'react'
@@ -39,22 +39,24 @@ export default function MenuPage() {
         <>
             <AutoSidebar items={sidebarItems} title="Categories" />
 
+            {/* ✅ FIX: Theme Variables Applied */}
             <div className="min-h-screen bg-[var(--bg)] lg:ml-64">
-                <header className="sticky top-0 z-20 bg-[var(--card)] border-b border-[var(--border)]">
-                    <div className="max-w-7xl mx-auto px-4 py-4">
+                {/* ✅ FIX: Header with proper theme */}
+                <header className="sticky top-0 z-20 bg-[var(--card)] border-b border-[var(--border)] backdrop-blur-lg bg-opacity-95">
+                    <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
                         <div className="flex items-center justify-between gap-3">
                             <div className="flex-1 min-w-0">
-                                <h1 className="text-2xl font-bold text-[var(--fg)] truncate">Menu</h1>
-                                <p className="text-sm text-[var(--muted)]">{filtered.length} items</p>
+                                <h1 className="text-xl sm:text-2xl font-bold text-[var(--fg)] truncate">Menu</h1>
+                                <p className="text-xs sm:text-sm text-[var(--muted)] mt-0.5">{filtered.length} items available</p>
                             </div>
                             <button
                                 onClick={() => setCartOpen(true)}
-                                className="relative px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 font-medium"
+                                className="relative px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 font-medium text-sm sm:text-base shadow-lg active:scale-95 transition-all"
                             >
-                                <ShoppingCart className="w-5 h-5" />
+                                <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5" />
                                 <span className="hidden xs:inline">Cart</span>
                                 {hydrated && cart.itemCount() > 0 && (
-                                    <span className="absolute -top-2 -right-2 w-6 h-6 bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                                    <span className="absolute -top-2 -right-2 w-5 h-5 sm:w-6 sm:h-6 bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg animate-pulse">
                                         {cart.itemCount()}
                                     </span>
                                 )}
@@ -63,31 +65,66 @@ export default function MenuPage() {
                     </div>
                 </header>
 
-                <div className="max-w-7xl mx-auto px-4 py-6">
+                {/* ✅ FIX: Content with proper spacing */}
+                <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
                     {loading ? (
                         <div className="flex justify-center py-20">
-                            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    ) : filtered.length === 0 ? (
+                        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-12 text-center">
+                            <div className="text-5xl mb-4">🍽️</div>
+                            <p className="text-[var(--fg)] font-medium mb-2">No items found</p>
+                            <p className="text-sm text-[var(--muted)]">Try selecting a different category</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        /* ✅ FIX: Responsive Grid - Better Mobile Layout */
+                        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                             {filtered.map(item => (
-                                <div key={item.id} className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden hover:shadow-lg hover:border-blue-600 transition-all group">
+                                <div
+                                    key={item.id}
+                                    className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden hover:shadow-xl hover:border-blue-600 transition-all group"
+                                >
+                                    {/* ✅ Image Section */}
                                     {item.image_url && (
-                                        <div className="h-40 overflow-hidden">
-                                            <img src={item.image_url} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                                        <div className="relative h-40 sm:h-48 overflow-hidden">
+                                            <img
+                                                src={item.image_url}
+                                                alt={item.name}
+                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                            />
+                                            {/* ✅ Overlay on hover */}
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                         </div>
                                     )}
-                                    <div className="p-4">
-                                        <h3 className="font-semibold text-lg text-[var(--fg)] mb-1 line-clamp-1">{item.name}</h3>
-                                        {item.description && <p className="text-sm text-[var(--muted)] mb-2 line-clamp-2">{item.description}</p>}
-                                        <div className="flex justify-between items-center gap-2">
-                                            <span className="text-xl font-bold text-blue-600 truncate">PKR {item.price}</span>
+
+                                    {/* ✅ Content Section - Better Spacing */}
+                                    <div className="p-3 sm:p-4 space-y-2 sm:space-y-3">
+                                        {/* Name */}
+                                        <h3 className="font-bold text-base sm:text-lg text-[var(--fg)] line-clamp-1 group-hover:text-blue-600 transition-colors">
+                                            {item.name}
+                                        </h3>
+
+                                        {/* Description */}
+                                        {item.description && (
+                                            <p className="text-xs sm:text-sm text-[var(--muted)] line-clamp-2 leading-relaxed">
+                                                {item.description}
+                                            </p>
+                                        )}
+
+                                        {/* ✅ Price + Add Button - Better Mobile Layout */}
+                                        <div className="flex items-center justify-between gap-2 pt-2">
+                                            <div className="flex-1 min-w-0">
+                                                <span className="text-lg sm:text-xl font-bold text-blue-600 block truncate">
+                                                    PKR {item.price}
+                                                </span>
+                                            </div>
                                             <button
                                                 onClick={() => cart.addItem(item)}
-                                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-all font-medium text-sm"
+                                                className="flex-shrink-0 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1.5 sm:gap-2 transition-all font-medium text-sm active:scale-95 shadow-md hover:shadow-lg"
                                             >
                                                 <Plus className="w-4 h-4" />
-                                                Add
+                                                <span>Add</span>
                                             </button>
                                         </div>
                                     </div>
