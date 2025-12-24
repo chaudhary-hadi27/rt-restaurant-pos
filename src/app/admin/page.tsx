@@ -157,7 +157,7 @@ export default function AdminDashboard() {
                 <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4 lg:py-5">
                     <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
-                            <AdminProfileBadge />
+                            <AdminProfileBadge onClick={() => setShowProfileModal(true)} />
 
                             <div>
                                 <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-[var(--fg)]">

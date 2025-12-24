@@ -48,8 +48,10 @@ export default function AdminLoginPage() {
     if (!mounted) return null
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[var(--bg)] p-4 sm:p-6 md:p-8">
-            <div className="w-full max-w-md">
+        <div className="h-full w-full flex items-center justify-center
+                bg-[var(--bg)] dark:bg-[var(--bg-dark)] transition-colors duration-300 p-4 sm:p-6 md:p-8">
+
+        <div className="w-full max-w-md">
                 <div className="text-center mb-6 sm:mb-8">
                     <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4 shadow-2xl">
                         <Shield className="w-8 h-8 sm:w-10 sm:h-10 text-white" />

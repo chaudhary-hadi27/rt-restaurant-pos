@@ -6,7 +6,7 @@ import React, { ReactElement } from 'react'
 interface StatCard {
     label: string
     value: string | number
-    icon?: string | LucideIcon | ReactElement
+    icon?: string | LucideIcon | ReactElement // ✅ Support JSX elements
     color?: string
     trend?: number
     subtext?: string
@@ -18,16 +18,29 @@ export default function ResponsiveStatsGrid({ stats }: { stats: StatCard[] }) {
     return (
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3 lg:gap-4">
             {stats.map((stat, idx) => {
+                // ✅ FIX: Properly handle all icon types
                 const renderIcon = () => {
                     if (!stat.icon) return null
+
+                    // If it's already a React element, return it directly
+                    if (React.isValidElement(stat.icon)) {
+                        return stat.icon
+                    }
+
+                    // If it's a Lucide icon component, render it
                     if (typeof stat.icon === 'function') {
                         const IconComp = stat.icon as LucideIcon
                         return <IconComp className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: stat.color || '#3b82f6' }} />
                     }
-                    return stat.icon
+
+                    // If it's an emoji string
+                    if (typeof stat.icon === 'string') {
+                        return <span className="text-2xl">{stat.icon}</span>
+                    }
+
+                    return null
                 }
 
-                // ✅ FIX: Convert value to string, handle NaN/undefined
                 const displayValue = stat.value !== undefined && stat.value !== null
                     ? (typeof stat.value === 'number' && isNaN(stat.value) ? '0' : String(stat.value))
                     : '0'

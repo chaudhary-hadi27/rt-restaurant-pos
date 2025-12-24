@@ -38,7 +38,13 @@ export function UniversalDataTable<T extends Record<string, any>>({
     const sorted = useMemo(() => {
         if (!sortKey) return filtered
         return [...filtered].sort((a, b) => {
-            const aVal = a[sortKey], bVal = b[sortKey]
+            const aVal = a?.[sortKey]
+            const bVal = b?.[sortKey]
+
+            if (aVal == null && bVal == null) return 0
+            if (aVal == null) return 1
+            if (bVal == null) return -1
+
             if (aVal < bVal) return sortDir === 'asc' ? -1 : 1
             if (aVal > bVal) return sortDir === 'asc' ? 1 : -1
             return 0
@@ -78,7 +84,12 @@ export function UniversalDataTable<T extends Record<string, any>>({
                                         {columns.filter(col => !col.mobileHidden).map(col => (
                                             <div key={col.key} className="flex justify-between items-start gap-3">
                                                 <span className="text-xs font-medium text-[var(--muted)] uppercase">{col.label}</span>
-                                                <div className="text-sm text-[var(--fg)] text-right">{col.render ? col.render(row) : row[col.key]}</div>
+                                                <div className="text-sm text-[var(--fg)] text-right">{col.render
+                                                    ? col.render(row)
+                                                    : row?.[col.key] !== undefined
+                                                        ? row[col.key]
+                                                        : '—'}
+                                                </div>
                                             </div>
                                         ))}
                                     </div>

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "sync": "browser-sync start --proxy \"localhost:3000\" --files \"app/**/*.{js,ts,tsx,css}\",\"components/**/*.{js,ts,tsx,css}\"",
     "build": "next build",
     "start": "next start",
     "lint": "biome check",
@@ -30,6 +31,7 @@
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
     "bcryptjs": "^3.0.3",
+    "browser-sync": "^3.0.4",
     "tailwindcss": "^4.0.0",
     "typescript": "^5"
   }

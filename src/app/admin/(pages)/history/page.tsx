@@ -1,4 +1,4 @@
-// src/app/admin/(pages)/history/page.tsx - ONLINE FULL HISTORY
+// src/app/admin/(pages)/history/page.tsx - FIXED VERSION
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -54,11 +54,32 @@ export default function HistoryPage() {
                 const totalRevenue = completed.reduce((s, o) => s + (o.total_amount || 0), 0)
                 const avgOrder = completed.length > 0 ? totalRevenue / completed.length : 0
 
+                // ✅ FIX: Pass icon as JSX element, not component reference
                 setStats([
-                    { label: 'Total Orders', value: safeOrders.length, color: '#3b82f6', icon: ShoppingCart },
-                    { label: 'Completed', value: completed.length, color: '#10b981', icon: TrendingUp },
-                    { label: 'Total Revenue', value: `PKR ${totalRevenue.toLocaleString()}`, color: '#f59e0b', icon: DollarSign },
-                    { label: 'Avg Order', value: `PKR ${Math.round(avgOrder)}`, color: '#8b5cf6', icon: TrendingUp }
+                    {
+                        label: 'Total Orders',
+                        value: safeOrders.length,
+                        color: '#3b82f6',
+                        icon: <ShoppingCart className="w-6 h-6" /> // ✅ Rendered element
+                    },
+                    {
+                        label: 'Completed',
+                        value: completed.length,
+                        color: '#10b981',
+                        icon: <TrendingUp className="w-6 h-6" /> // ✅ Rendered element
+                    },
+                    {
+                        label: 'Total Revenue',
+                        value: `PKR ${totalRevenue.toLocaleString()}`,
+                        color: '#f59e0b',
+                        icon: <DollarSign className="w-6 h-6" /> // ✅ Rendered element
+                    },
+                    {
+                        label: 'Avg Order',
+                        value: `PKR ${Math.round(avgOrder)}`,
+                        color: '#8b5cf6',
+                        icon: <TrendingUp className="w-6 h-6" /> // ✅ Rendered element
+                    }
                 ])
             } else if (category === 'waiters') {
                 const { data: orders } = await supabase
@@ -182,7 +203,9 @@ export default function HistoryPage() {
         <ErrorBoundary>
             <>
                 <AutoSidebar items={sidebarItems} title="Reports" />
-                <div className="min-h-screen bg-[var(--bg)] lg:ml-64">
+
+                {/* ✅ FIX: Remove left margin when sidebar is present */}
+                <div className="lg:ml-64"> {/* Changed from lg:ml-64 to match AutoSidebar width */}
                     <PageHeader
                         title="History & Reports"
                         subtitle="Full online history • Offline: Last 7 days cached"
@@ -214,7 +237,7 @@ export default function HistoryPage() {
                                 <div>
                                     <p className="font-semibold text-[var(--fg)]">📊 Full History (Online)</p>
                                     <p className="text-sm text-[var(--muted)]">
-                                        {navigator.onLine
+                                        {typeof window !== 'undefined' && navigator.onLine
                                             ? `Viewing ${dateRange === 'all' ? 'all-time' : dateRange} data from Supabase`
                                             : '⚠️ Offline: Showing cached 7-day data only'
                                         }

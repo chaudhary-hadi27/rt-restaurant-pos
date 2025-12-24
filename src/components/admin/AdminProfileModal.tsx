@@ -1,4 +1,4 @@
-// src/components/admin/AdminProfileModal.tsx - NEW FILE
+// src/components/admin/AdminProfileModal.tsx
 'use client'
 
 import { X, Shield } from 'lucide-react'
@@ -55,8 +55,8 @@ export default function AdminProfileModal({ open, onClose }: AdminProfileModalPr
                                 className="w-24 h-24 rounded-full object-cover border-4 border-blue-600 shadow-lg mb-4"
                             />
                         ) : (
-                            <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-white text-4xl font-bold shadow-lg mb-4">
-                                {profile.name.charAt(0).toUpperCase()}
+                            <div className="w-24 h-24 rounded-full bg-blue-600/10 flex items-center justify-center text-[var(--fg)] text-4xl font-bold shadow-lg mb-4">
+                                {profile.name?.charAt(0)?.toUpperCase() || 'A'}
                             </div>
                         )}
                         <h2 className="text-2xl font-bold text-[var(--fg)]">{profile.name}</h2>
@@ -68,7 +68,7 @@ export default function AdminProfileModal({ open, onClose }: AdminProfileModalPr
                     </div>
 
                     {/* Info Card */}
-                    <div className="p-4 bg-[var(--bg)] rounded-lg border border-[var(--border)]">
+                    <div className="p-4 bg-[var(--card)] rounded-lg border border-[var(--border)]">
                         <div className="flex items-center gap-3 mb-3">
                             <div className="w-10 h-10 bg-blue-600/10 rounded-lg flex items-center justify-center">
                                 <Shield className="w-5 h-5 text-blue-600" />
@@ -97,7 +97,7 @@ export default function AdminProfileModal({ open, onClose }: AdminProfileModalPr
 
                         <button
                             onClick={onClose}
-                            className="w-full px-4 py-3 bg-[var(--bg)] text-[var(--fg)] rounded-lg hover:bg-[var(--border)] font-medium text-sm transition-all active:scale-95"
+                            className="w-full px-4 py-3 bg-[var(--card)] text-[var(--fg)] rounded-lg hover:bg-[var(--border)] font-medium text-sm transition-all active:scale-95"
                         >
                             Close
                         </button>
