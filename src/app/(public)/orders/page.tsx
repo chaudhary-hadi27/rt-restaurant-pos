@@ -1,4 +1,4 @@
-// src/app/(public)/orders/page.tsx
+// src/app/(public)/orders/page.tsx - COMPLETE FIXED VERSION
 "use client"
 
 import { useState, useMemo } from 'react'
@@ -23,7 +23,7 @@ export default function OrdersPage() {
     const [showPaymentModal, setShowPaymentModal] = useState<any>(null)
 
     const { data: orders, loading, refresh } = useOrders()
-    const { completeOrder, cancelOrder, markPrinted, loading: actionLoading } = useOrderManagement()
+    const { printAndComplete, cancelOrder, loading: actionLoading } = useOrderManagement()
 
     useOrdersSync(refresh)
 
@@ -61,29 +61,31 @@ export default function OrdersPage() {
         ]
     }, [orders, filter])
 
-    const handleComplete = async (paymentMethod: 'cash' | 'online') => {
+    // ✅ FIXED: Print & Complete Handler
+    const handlePrintAndComplete = async (paymentMethod: 'cash' | 'online') => {
         if (!showPaymentModal) return
 
         const supabase = createClient()
 
-        // Update payment method
+        // Update payment method first
         await supabase
             .from('orders')
             .update({ payment_method: paymentMethod })
             .eq('id', showPaymentModal.id)
 
-        // Complete order
-        const result = await completeOrder(
+        // Show receipt for printing
+        setShowReceipt(showPaymentModal)
+
+        // Complete order (auto-marks as printed)
+        await printAndComplete(
             showPaymentModal.id,
             showPaymentModal.table_id,
             showPaymentModal.order_type
         )
 
-        if (result.success) {
-            setShowPaymentModal(null)
-            setSelectedOrder(null)
-            refresh()
-        }
+        setShowPaymentModal(null)
+        setSelectedOrder(null)
+        refresh()
     }
 
     const handleCancel = async (order: any) => {
@@ -93,12 +95,6 @@ export default function OrdersPage() {
             setSelectedOrder(null)
             refresh()
         }
-    }
-
-    const handlePrint = async (order: any) => {
-        await markPrinted(order.id)
-        setShowReceipt(order)
-        refresh()
     }
 
     const columns = [
@@ -181,17 +177,12 @@ export default function OrdersPage() {
                         footer={
                             <div className="flex flex-wrap gap-2 w-full">
                                 <button
-                                    onClick={() => handlePrint(selectedOrder)}
-                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm font-medium transition-colors active:scale-95"
-                                >
-                                    <Printer className="w-4 h-4" /> Print
-                                </button>
-                                <button
                                     onClick={() => setShowSplitBill(selectedOrder)}
                                     className="flex-1 px-4 py-2 bg-[var(--bg)] border border-[var(--border)] text-[var(--fg)] rounded-lg hover:bg-[var(--card)] flex items-center justify-center gap-2 text-sm font-medium transition-colors active:scale-95"
                                 >
                                     <Users className="w-4 h-4" /> Split
                                 </button>
+
                                 {selectedOrder.status === 'pending' && (
                                     <>
                                         <button
@@ -201,20 +192,30 @@ export default function OrdersPage() {
                                         >
                                             Cancel
                                         </button>
+
+                                        {/* ✅ FIXED: Single Print & Complete Button */}
                                         <button
                                             onClick={() => {
-                                                // Check if dine-in without payment
                                                 if (selectedOrder.order_type === 'dine-in' && !selectedOrder.payment_method) {
                                                     setShowPaymentModal(selectedOrder)
                                                 } else {
                                                     // Direct complete for delivery orders
-                                                    handleComplete(selectedOrder.payment_method || 'cash')
+                                                    setShowReceipt(selectedOrder)
+                                                    printAndComplete(
+                                                        selectedOrder.id,
+                                                        selectedOrder.table_id,
+                                                        selectedOrder.order_type
+                                                    ).then(() => {
+                                                        setSelectedOrder(null)
+                                                        refresh()
+                                                    })
                                                 }
                                             }}
                                             disabled={actionLoading}
-                                            className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors disabled:opacity-50 active:scale-95"
+                                            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm font-medium transition-colors disabled:opacity-50 active:scale-95"
                                         >
-                                            Complete
+                                            <Printer className="w-4 h-4" />
+                                            Print & Complete
                                         </button>
                                     </>
                                 )}
@@ -249,7 +250,7 @@ export default function OrdersPage() {
 
                             <div className="p-6 space-y-3">
                                 <button
-                                    onClick={() => handleComplete('cash')}
+                                    onClick={() => handlePrintAndComplete('cash')}
                                     disabled={actionLoading}
                                     className="w-full p-4 border-2 border-[var(--border)] rounded-lg hover:border-green-600 hover:bg-green-600/10 transition-all group disabled:opacity-50"
                                 >
@@ -265,7 +266,7 @@ export default function OrdersPage() {
                                 </button>
 
                                 <button
-                                    onClick={() => handleComplete('online')}
+                                    onClick={() => handlePrintAndComplete('online')}
                                     disabled={actionLoading}
                                     className="w-full p-4 border-2 border-[var(--border)] rounded-lg hover:border-blue-600 hover:bg-blue-600/10 transition-all group disabled:opacity-50"
                                 >

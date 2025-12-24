@@ -1,18 +1,12 @@
-// src/lib/db/offlineManager.ts
+// src/lib/db/offlineManager.ts - FINAL PRODUCTION VERSION
 import { createClient } from '@/lib/supabase/client'
 import { db } from './indexedDB'
 import { STORES } from './schema'
-import { smartStorage, STORAGE_LIMITS } from './storageStrategy'
 
 interface DownloadResult {
     success: boolean
     message?: string
-    counts?: {
-        categories: number
-        items: number
-        tables: number
-        waiters: number
-    }
+    counts?: { categories: number; items: number; tables: number; waiters: number }
     error?: string
 }
 
@@ -23,233 +17,257 @@ interface StorageInfo {
     hasData: boolean
     ordersCount: number
     menuItemsCount: number
-    breakdown: {
-        menu: number
-        orders: number
-        images: number
-        total: number
-    }
+    breakdown: { menu: number; orders: number; images: number; total: number }
 }
 
 class OfflineManager {
     private isDownloading = false
 
-    // ✅ Download essential data (menu ALWAYS cached)
+    // ✅ ALWAYS download menu (permanent cache)
     async downloadEssentialData(force = false): Promise<DownloadResult> {
-        if (this.isDownloading) {
-            return { success: false, message: 'Already downloading...' }
-        }
+        if (this.isDownloading) return { success: false, message: 'Already downloading...' }
 
-        // Check if data is fresh (unless forced)
-        if (!force && await smartStorage.isDataFresh('menu')) {
-            return { success: true, message: 'Data is fresh' }
+        const lastSync = localStorage.getItem('menu_last_sync')
+        const oneHour = 60 * 60 * 1000
+
+        if (!force && lastSync && Date.now() - parseInt(lastSync) < oneHour) {
+            return { success: true, message: 'Menu is fresh' }
         }
 
         this.isDownloading = true
         const supabase = createClient()
 
         try {
-            console.log('📥 Downloading essential data for all devices...')
+            console.log('📥 Syncing menu data...')
 
-            // ✅ ALWAYS fetch menu (core business data)
             const [categories, items, tables, waiters] = await Promise.all([
-                supabase
-                    .from('menu_categories')
-                    .select('id, name, icon, display_order, is_active')
-                    .eq('is_active', true)
-                    .order('display_order'),
-
-                supabase
-                    .from('menu_items')
-                    .select('id, name, price, category_id, description, image_url, is_available')
-                    .eq('is_available', true)
-                    .order('name'),
-
-                supabase
-                    .from('restaurant_tables')
-                    .select('id, table_number, section, capacity, status')
-                    .order('table_number'),
-
-                supabase
-                    .from('waiters')
-                    .select('id, name, phone, employee_type, is_active')
-                    .eq('is_active', true)
-                    .order('name')
+                supabase.from('menu_categories').select('*').eq('is_active', true).order('display_order'),
+                supabase.from('menu_items').select('*').eq('is_available', true).order('name'),
+                supabase.from('restaurant_tables').select('*').order('table_number'),
+                supabase.from('waiters').select('*').eq('is_active', true).order('name')
             ])
 
-            // ✅ FIXED: Type-safe data handling
             const categoriesData = categories.data || []
             const itemsData = items.data || []
             const tablesData = tables.data || []
             const waitersData = waiters.data || []
 
-            // Store in IndexedDB
-            if (categoriesData.length > 0) {
-                await db.bulkPut(STORES.MENU_CATEGORIES, categoriesData)
-            }
+            // ✅ Store permanently in IndexedDB
+            if (categoriesData.length > 0) await db.bulkPut(STORES.MENU_CATEGORIES, categoriesData)
+            if (itemsData.length > 0) await db.bulkPut(STORES.MENU_ITEMS, itemsData)
+            if (tablesData.length > 0) await db.put(STORES.SETTINGS, { key: 'tables', value: tablesData })
+            if (waitersData.length > 0) await db.put(STORES.SETTINGS, { key: 'waiters', value: waitersData })
 
-            if (itemsData.length > 0) {
-                // ✅ Cache images based on device/network
-                const shouldCache = smartStorage.shouldCacheImages()
-                if (shouldCache) {
-                    const imageUrls = itemsData
-                        .map(item => item.image_url)
-                        .filter((url): url is string => Boolean(url))
-
-                    if (imageUrls.length > 0) {
-                        this.cacheImages(imageUrls)
-                    }
-                }
-
-                await db.bulkPut(STORES.MENU_ITEMS, itemsData)
-            }
-
-            if (tablesData.length > 0) {
-                await db.put(STORES.SETTINGS, {
-                    key: 'tables',
-                    value: tablesData
+            // Cache images via Service Worker
+            const imageUrls = itemsData.map(i => i.image_url).filter(Boolean)
+            if (imageUrls.length > 0 && navigator.serviceWorker?.controller) {
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'CACHE_IMAGES',
+                    urls: imageUrls
                 })
             }
 
-            if (waitersData.length > 0) {
-                await db.put(STORES.SETTINGS, {
-                    key: 'waiters',
-                    value: waitersData
-                })
-            }
+            localStorage.setItem('menu_last_sync', Date.now().toString())
+            localStorage.setItem('offline_ready', 'true')
 
-            // Update metadata
-            await smartStorage.updateMeta('menu', itemsData.length)
-            await smartStorage.updateMeta('tables', tablesData.length)
-            await smartStorage.updateMeta('waiters', waitersData.length)
-
-            // Clean old data (keep history optimized)
-            const cleaned = await smartStorage.cleanOldOrders()
-            if (cleaned > 0) {
-                console.log(`♻️ Auto-cleaned ${cleaned} old orders`)
-            }
-
-            const counts = {
-                categories: categoriesData.length,
-                items: itemsData.length,
-                tables: tablesData.length,
-                waiters: waitersData.length
-            }
-
-            console.log('✅ Data synced:', counts)
+            console.log('✅ Menu synced:', { items: itemsData.length, categories: categoriesData.length })
 
             return {
                 success: true,
-                counts,
-                message: `Synced ${counts.items} menu items`
+                counts: {
+                    categories: categoriesData.length,
+                    items: itemsData.length,
+                    tables: tablesData.length,
+                    waiters: waitersData.length
+                }
             }
-
         } catch (error: any) {
-            console.error('❌ Download failed:', error)
-            return {
-                success: false,
-                error: error.message || 'Download failed'
-            }
+            console.error('❌ Sync failed:', error)
+            return { success: false, error: error.message }
         } finally {
             this.isDownloading = false
         }
     }
 
-    // ✅ Cache images via Service Worker
-    private cacheImages(urls: string[]): void {
-        if (!navigator.serviceWorker?.controller) return
+    // ✅ Smart cleanup - Keep menu, delete old orders (7 days)
+    async cleanupOldData(): Promise<number> {
+        try {
+            const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000)
+            const orders = await db.getAll(STORES.ORDERS) as any[]
 
-        // Only cache valid Cloudinary URLs
-        const validUrls = urls.filter(url =>
-            url &&
-            typeof url === 'string' &&
-            url.includes('cloudinary')
-        )
+            const oldOrders = orders.filter(o => {
+                const orderTime = new Date(o.created_at).getTime()
+                return orderTime < sevenDaysAgo && o.status === 'completed'
+            })
 
-        if (validUrls.length === 0) return
+            for (const order of oldOrders) {
+                await db.delete(STORES.ORDERS, order.id)
 
-        navigator.serviceWorker.controller.postMessage({
-            type: 'CACHE_IMAGES',
-            urls: validUrls
-        })
+                // Delete related items
+                const items = await db.getAll(STORES.ORDER_ITEMS) as any[]
+                const orderItems = items.filter(i => i.order_id === order.id)
+                for (const item of orderItems) {
+                    await db.delete(STORES.ORDER_ITEMS, item.id)
+                }
+            }
 
-        console.log(`🖼️ Caching ${validUrls.length} images`)
+            if (oldOrders.length > 0) {
+                console.log(`🧹 Cleaned ${oldOrders.length} old orders (>7 days)`)
+            }
+
+            return oldOrders.length
+        } catch (error) {
+            console.error('Cleanup error:', error)
+            return 0
+        }
     }
 
-    // ✅ FIXED: Get offline data with type safety
+    // ✅ Delete menu item (local + Supabase + Cloudinary)
+    async deleteMenuItem(id: string, imageUrl?: string): Promise<{ success: boolean; error?: string }> {
+        try {
+            // Delete from IndexedDB
+            await db.delete(STORES.MENU_ITEMS, id)
+
+            // Delete from Supabase if online
+            if (navigator.onLine) {
+                const supabase = createClient()
+                const { error } = await supabase.from('menu_items').delete().eq('id', id)
+                if (error) throw error
+
+                // Delete from Cloudinary
+                if (imageUrl?.includes('cloudinary')) {
+                    const publicId = imageUrl.split('/').slice(-2).join('/').split('.')[0]
+                    await fetch('/api/upload/cloudinary', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ public_id: publicId })
+                    }).catch(err => console.warn('Cloudinary delete failed:', err))
+                }
+            }
+
+            console.log('✅ Menu item deleted:', id)
+            return { success: true }
+        } catch (error: any) {
+            console.error('Delete error:', error)
+            return { success: false, error: error.message }
+        }
+    }
+
+    // ✅ Admin: Delete old history (monthly/yearly)
+    async deleteOldHistory(type: 'monthly' | 'yearly'): Promise<{ success: boolean; deleted: number }> {
+        try {
+            const cutoffDays = type === 'monthly' ? 30 : 365
+            const cutoffTime = Date.now() - (cutoffDays * 24 * 60 * 60 * 1000)
+
+            const orders = await db.getAll(STORES.ORDERS) as any[]
+            const oldOrders = orders.filter(o => {
+                const orderTime = new Date(o.created_at).getTime()
+                return orderTime < cutoffTime
+            })
+
+            for (const order of oldOrders) {
+                await db.delete(STORES.ORDERS, order.id)
+
+                const items = await db.getAll(STORES.ORDER_ITEMS) as any[]
+                const orderItems = items.filter(i => i.order_id === order.id)
+                for (const item of orderItems) {
+                    await db.delete(STORES.ORDER_ITEMS, item.id)
+                }
+            }
+
+            // Also delete from Supabase if online
+            if (navigator.onLine) {
+                const supabase = createClient()
+                const cutoffDate = new Date(cutoffTime).toISOString()
+
+                await supabase.from('order_items').delete()
+                    .in('order_id', oldOrders.map(o => o.id))
+
+                await supabase.from('orders').delete()
+                    .lt('created_at', cutoffDate)
+            }
+
+            console.log(`🗑️ Deleted ${oldOrders.length} ${type} orders`)
+            return { success: true, deleted: oldOrders.length }
+        } catch (error) {
+            console.error('History delete error:', error)
+            return { success: false, deleted: 0 }
+        }
+    }
+
+    // ✅ Get offline data with type safety
     async getOfflineData(store: string): Promise<any[]> {
         try {
             if (store === 'restaurant_tables' || store === 'waiters') {
                 const data = await db.get(STORES.SETTINGS, store) as { value?: any[] } | undefined
                 return data?.value || []
             }
-
             const data = await db.getAll(store)
             return Array.isArray(data) ? data : []
         } catch (error) {
-            console.error(`Error getting offline data for ${store}:`, error)
+            console.error(`Error getting ${store}:`, error)
             return []
         }
     }
 
-    // ✅ FIXED: Check if offline data exists
-    async hasOfflineData(): Promise<boolean> {
-        try {
-            const [categories, items] = await Promise.all([
-                db.getAll(STORES.MENU_CATEGORIES) as Promise<any[]>,
-                db.getAll(STORES.MENU_ITEMS) as Promise<any[]>
-            ])
+    // ✅ Check if offline ready
+    async isOfflineReady(): Promise<boolean> {
+        const ready = localStorage.getItem('offline_ready') === 'true'
+        if (!ready) return false
 
-            const hasCategories = Array.isArray(categories) && categories.length > 0
-            const hasItems = Array.isArray(items) && items.length > 0
+        const [categories, items] = await Promise.all([
+            db.getAll(STORES.MENU_CATEGORIES),
+            db.getAll(STORES.MENU_ITEMS)
+        ])
 
-            return hasCategories && hasItems
-        } catch (error) {
-            console.error('Error checking offline data:', error)
-            return false
-        }
+        return Array.isArray(categories) && categories.length > 0 &&
+            Array.isArray(items) && items.length > 0
     }
 
-    // ✅ Clear all offline data (keep menu by default)
+    // ✅ Clear all data (keep menu by default)
     async clearAllData(includeMenu = false): Promise<void> {
-        const storesToClear = [
-            STORES.ORDERS,
-            STORES.ORDER_ITEMS,
-            STORES.CART,
-            STORES.SYNC_QUEUE
-        ]
+        const storesToClear = [STORES.ORDERS, STORES.ORDER_ITEMS, STORES.CART, STORES.SYNC_QUEUE]
 
         if (includeMenu) {
             storesToClear.push(STORES.MENU_ITEMS, STORES.MENU_CATEGORIES)
+            localStorage.removeItem('offline_ready')
         }
 
-        await Promise.all(
-            storesToClear.map(store => db.clear(store))
-        )
-
-        console.log(`🗑️ Cleared offline data (menu ${includeMenu ? 'included' : 'preserved'})`)
+        await Promise.all(storesToClear.map(store => db.clear(store)))
+        console.log(`🗑️ Cleared data (menu ${includeMenu ? 'included' : 'preserved'})`)
     }
 
-    // ✅ FIXED: Get complete storage info
+    // ✅ Get storage info
     async getStorageInfo(): Promise<StorageInfo> {
         try {
-            const [size, hasData, orders, menuItems, breakdown] = await Promise.all([
-                smartStorage.getStorageSize(),
-                this.hasOfflineData(),
+            const [orders, menuItems] = await Promise.all([
                 db.getAll(STORES.ORDERS) as Promise<any[]>,
-                db.getAll(STORES.MENU_ITEMS) as Promise<any[]>,
-                smartStorage.getStorageBreakdown()
+                db.getAll(STORES.MENU_ITEMS) as Promise<any[]>
             ])
 
+            const menuSize = (menuItems?.length || 0) * 2
+            const ordersSize = (orders?.length || 0) * 5
+            const imagesSize = (menuItems?.filter(i => i.image_url)?.length || 0) * 100
+
+            const estimate = await navigator.storage?.estimate?.() || { usage: 0, quota: 0 }
+            const used = Math.round((estimate.usage || 0) / 1024 / 1024)
+            const limit = Math.round((estimate.quota || 0) / 1024 / 1024)
+
             return {
-                ...size,
-                hasData,
-                ordersCount: Array.isArray(orders) ? orders.length : 0,
-                menuItemsCount: Array.isArray(menuItems) ? menuItems.length : 0,
-                breakdown
+                used,
+                limit,
+                percentage: limit > 0 ? Math.round((used / limit) * 100) : 0,
+                hasData: await this.isOfflineReady(),
+                ordersCount: orders?.length || 0,
+                menuItemsCount: menuItems?.length || 0,
+                breakdown: {
+                    menu: menuSize,
+                    orders: ordersSize,
+                    images: imagesSize,
+                    total: menuSize + ordersSize + imagesSize
+                }
             }
         } catch (error) {
-            console.error('Error getting storage info:', error)
             return {
                 used: 0,
                 limit: 0,
@@ -264,3 +282,8 @@ class OfflineManager {
 }
 
 export const offlineManager = new OfflineManager()
+
+// ✅ Auto-cleanup on app start
+if (typeof window !== 'undefined') {
+    offlineManager.cleanupOldData()
+}

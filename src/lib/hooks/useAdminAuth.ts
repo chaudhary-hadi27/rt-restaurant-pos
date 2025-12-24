@@ -22,20 +22,28 @@ export function useAdminAuth() {
 
     const checkAuth = () => {
         const isLoginPage = pathname.includes('/login')
-        const sessionAuth = sessionStorage.getItem('admin_auth') === 'true'
-        const offlineAuth = localStorage.getItem('admin_offline_auth') === 'true'
-        const isAuth = sessionAuth || offlineAuth
 
-        // Load profile from localStorage
+        // ✅ FIXED: Proper session check
+        const sessionAuth = sessionStorage.getItem('admin_auth') === 'true'
+        const sessionTime = parseInt(sessionStorage.getItem('admin_auth_time') || '0')
+        const now = Date.now()
+
+        // ✅ Session expires after 8 hours
+        const isSessionValid = sessionAuth && (now - sessionTime < 8 * 60 * 60 * 1000)
+
+        // Load profile
         const storedProfile = localStorage.getItem('admin_profile')
         if (storedProfile) {
             setProfile(JSON.parse(storedProfile))
         }
 
-        setIsAuthenticated(isAuth)
+        setIsAuthenticated(isSessionValid)
         setLoading(false)
 
-        if (!isAuth && !isLoginPage) {
+        // ✅ FIXED: Always redirect if not authenticated
+        if (!isSessionValid && !isLoginPage) {
+            sessionStorage.removeItem('admin_auth')
+            sessionStorage.removeItem('admin_auth_time')
             router.push('/admin/login')
         }
     }
@@ -45,6 +53,7 @@ export function useAdminAuth() {
 
         try {
             if (navigator.onLine) {
+                // ✅ Online verification
                 const res = await fetch('/api/auth/verify-admin', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -54,9 +63,9 @@ export function useAdminAuth() {
                 if (res.ok) {
                     const data = await res.json()
 
-                    // Store auth
+                    // Store session
                     sessionStorage.setItem('admin_auth', 'true')
-                    localStorage.setItem('admin_offline_auth', 'true')
+                    sessionStorage.setItem('admin_auth_time', Date.now().toString())
 
                     // Store profile
                     if (data.profile) {
@@ -64,8 +73,10 @@ export function useAdminAuth() {
                         setProfile(data.profile)
                     }
 
+                    // ✅ Store hashed password for offline use
                     const hashed = await bcrypt.hash(password, 10)
                     localStorage.setItem('admin_pwd_hash', hashed)
+                    localStorage.setItem('admin_offline_enabled', 'true')
 
                     setIsAuthenticated(true)
                     return { success: true }
@@ -74,17 +85,31 @@ export function useAdminAuth() {
                 const data = await res.json()
                 return { success: false, error: data.error || 'Invalid password' }
             } else {
-                const storedHash = localStorage.getItem('admin_pwd_hash')
-                if (!storedHash) {
-                    return { success: false, error: 'No offline credentials. Login online first.' }
+                // ✅ FIXED: Proper offline verification
+                const offlineEnabled = localStorage.getItem('admin_offline_enabled') === 'true'
+
+                if (!offlineEnabled) {
+                    return {
+                        success: false,
+                        error: '🔒 Please login online once to enable offline access'
+                    }
                 }
 
+                const storedHash = localStorage.getItem('admin_pwd_hash')
+                if (!storedHash) {
+                    return {
+                        success: false,
+                        error: '🔒 No offline credentials. Login online first.'
+                    }
+                }
+
+                // ✅ Verify password offline
                 const isValid = await bcrypt.compare(password, storedHash)
+
                 if (isValid) {
                     sessionStorage.setItem('admin_auth', 'true')
-                    localStorage.setItem('admin_offline_auth', 'true')
+                    sessionStorage.setItem('admin_auth_time', Date.now().toString())
 
-                    // Load offline profile
                     const storedProfile = localStorage.getItem('admin_profile')
                     if (storedProfile) setProfile(JSON.parse(storedProfile))
 
@@ -95,12 +120,22 @@ export function useAdminAuth() {
                 return { success: false, error: 'Invalid password' }
             }
         } catch (error) {
+            // ✅ Fallback to offline if network error
+            const offlineEnabled = localStorage.getItem('admin_offline_enabled') === 'true'
+
+            if (!offlineEnabled) {
+                return {
+                    success: false,
+                    error: '🔒 Login online once to enable offline access'
+                }
+            }
+
             const storedHash = localStorage.getItem('admin_pwd_hash')
             if (storedHash) {
                 const isValid = await bcrypt.compare(password, storedHash)
                 if (isValid) {
                     sessionStorage.setItem('admin_auth', 'true')
-                    localStorage.setItem('admin_offline_auth', 'true')
+                    sessionStorage.setItem('admin_auth_time', Date.now().toString())
 
                     const storedProfile = localStorage.getItem('admin_profile')
                     if (storedProfile) setProfile(JSON.parse(storedProfile))
@@ -110,7 +145,10 @@ export function useAdminAuth() {
                 }
             }
 
-            return { success: false, error: 'Network error. Login online first to enable offline access.' }
+            return {
+                success: false,
+                error: '❌ Network error. Login online first to enable offline access.'
+            }
         } finally {
             setLoading(false)
         }
@@ -123,7 +161,7 @@ export function useAdminAuth() {
 
     const logout = () => {
         sessionStorage.removeItem('admin_auth')
-        localStorage.removeItem('admin_offline_auth')
+        sessionStorage.removeItem('admin_auth_time')
         setIsAuthenticated(false)
         setProfile(null)
         router.push('/admin/login')

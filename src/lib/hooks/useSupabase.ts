@@ -1,3 +1,6 @@
+// src/lib/hooks/useSupabase.ts - SSR SAFE VERSION
+'use client'
+
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { offlineManager } from '@/lib/db/offlineManager'
@@ -15,7 +18,8 @@ export function useSupabase<T = any>(
     const [data, setData] = useState<T[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
-    const [isOffline, setIsOffline] = useState(!navigator.onLine)
+    const [isOffline, setIsOffline] = useState(false) // ✅ FIX: Default false for SSR
+    const [isMounted, setIsMounted] = useState(false) // ✅ Track client mount
     const supabase = createClient()
 
     // ✅ Map table names to IndexedDB stores
@@ -30,12 +34,17 @@ export function useSupabase<T = any>(
     }
 
     const load = async () => {
+        // ✅ Only run on client
+        if (typeof window === 'undefined') return
+
         setLoading(true)
         setError(null)
 
         try {
-            // ✅ Try online first
-            if (navigator.onLine) {
+            // ✅ Safe navigator check
+            const online = typeof navigator !== 'undefined' && navigator.onLine
+
+            if (online) {
                 let query = supabase.from(table).select(options?.select || '*')
 
                 if (options?.filter) {
@@ -86,7 +95,7 @@ export function useSupabase<T = any>(
 
                 setData(filtered)
                 setIsOffline(true)
-                setError(null) // Clear error on successful offline load
+                setError(null)
             } catch (offlineErr) {
                 console.error('Offline load failed:', offlineErr)
                 setError('No offline data available')
@@ -98,9 +107,17 @@ export function useSupabase<T = any>(
     }
 
     useEffect(() => {
+        // ✅ Set mounted and initial offline state
+        setIsMounted(true)
+        if (typeof navigator !== 'undefined') {
+            setIsOffline(!navigator.onLine)
+        }
+
         load()
 
-        // ✅ Network status listener
+        // ✅ Network status listener (only on client)
+        if (typeof window === 'undefined') return
+
         const handleOnline = () => {
             setIsOffline(false)
             load()
@@ -112,7 +129,7 @@ export function useSupabase<T = any>(
 
         // ✅ Realtime only when online
         let channel: any
-        if (options?.realtime && navigator.onLine) {
+        if (options?.realtime && typeof navigator !== 'undefined' && navigator.onLine) {
             channel = supabase
                 .channel(`${table}_changes`)
                 .on('postgres_changes', { event: '*', schema: 'public', table }, load)
@@ -144,5 +161,5 @@ export function useSupabase<T = any>(
         return { error }
     }
 
-    return { data, loading, error, isOffline, refresh: load, insert, update, remove }
+    return { data, loading, error, isOffline, isMounted, refresh: load, insert, update, remove }
 }

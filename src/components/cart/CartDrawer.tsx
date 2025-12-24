@@ -1,4 +1,4 @@
-// src/components/cart/CartDrawer.tsx - QUANTITY INPUT ADDED
+// src/components/cart/CartDrawer.tsx - CUSTOM QUANTITY INPUT
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -28,8 +28,12 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
     const [tableWarning, setTableWarning] = useState<{ show: boolean; tableNumber: number; currentOrder?: any } | null>(null)
     const [confirmAddMore, setConfirmAddMore] = useState(false)
 
-    // ✅ NEW: Track quantity editing state
+    // ✅ Track quantity editing state
     const [editingQuantity, setEditingQuantity] = useState<{ [key: string]: string }>({})
+
+    // ✅ NEW: Custom tax percentage
+    const [customTaxPercent, setCustomTaxPercent] = useState<string>('0')
+    const [editingTax, setEditingTax] = useState(false)
 
     const supabase = createClient()
 
@@ -70,15 +74,14 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
         setTableWarning(null)
     }
 
-    // ✅ NEW: Handle quantity input change
+    // ✅ Handle quantity input change (only allow numbers)
     const handleQuantityChange = (itemId: string, value: string) => {
-        // Allow only numbers
         if (value === '' || /^\d+$/.test(value)) {
             setEditingQuantity({ ...editingQuantity, [itemId]: value })
         }
     }
 
-    // ✅ NEW: Handle quantity input blur (when user finishes editing)
+    // ✅ Handle quantity input blur (apply changes)
     const handleQuantityBlur = (itemId: string) => {
         const value = editingQuantity[itemId]
         if (value && value !== '') {
@@ -87,17 +90,49 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                 cart.updateQuantity(itemId, num)
             } else if (num > 999) {
                 cart.updateQuantity(itemId, 999)
+            } else if (num <= 0) {
+                cart.updateQuantity(itemId, 1)
             }
         }
         // Clear editing state
-        setEditingQuantity({ ...editingQuantity, [itemId]: '' })
+        const newState = { ...editingQuantity }
+        delete newState[itemId]
+        setEditingQuantity(newState)
     }
 
-    // ✅ NEW: Handle Enter key in quantity input
+    // ✅ Handle Enter key in quantity input
     const handleQuantityKeyDown = (e: React.KeyboardEvent, itemId: string) => {
         if (e.key === 'Enter') {
             (e.target as HTMLInputElement).blur()
         }
+    }
+
+    // ✅ Handle focus - select all text for easy editing
+    const handleQuantityFocus = (e: React.FocusEvent<HTMLInputElement>, itemId: string, currentQty: number) => {
+        e.target.select()
+        setEditingQuantity({ ...editingQuantity, [itemId]: currentQty.toString() })
+    }
+
+    // ✅ NEW: Handle tax input
+    const handleTaxChange = (value: string) => {
+        if (value === '' || /^\d*\.?\d*$/.test(value)) {
+            const num = parseFloat(value)
+            if (value === '' || (num >= 0 && num <= 100)) {
+                setCustomTaxPercent(value)
+            }
+        }
+    }
+
+    const handleTaxBlur = () => {
+        if (customTaxPercent === '') {
+            setCustomTaxPercent('0')
+        }
+        setEditingTax(false)
+    }
+
+    const calculateTax = () => {
+        const percent = parseFloat(customTaxPercent) || 0
+        return (cart.subtotal() * percent) / 100
     }
 
     const placeOrder = async () => {
@@ -110,7 +145,7 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
         }
 
         const subtotal = cart.subtotal()
-        const tax = cart.tax()
+        const tax = calculateTax()
         const deliveryFee = orderType === 'delivery' ? details.delivery_charges : 0
         const total = subtotal + tax + deliveryFee
 
@@ -159,6 +194,8 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
             setConfirmAddMore(false)
             setTableWarning(null)
             setEditingQuantity({})
+            setCustomTaxPercent('5')
+            setEditingTax(false)
         }
     }
 
@@ -381,50 +418,66 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                         </>
                     )}
 
-                    {/* ✅ IMPROVED: Cart Items with Editable Quantity */}
+                    {/* ✅ Cart Items with EDITABLE QUANTITY */}
                     {cart.items.length > 0 && (
                         <div className="space-y-2">
                             <h3 className="text-sm font-semibold text-[var(--fg)] px-1">Order Items</h3>
                             {cart.items.map(item => (
-                                <div key={item.id} className="p-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg">
-                                    <div className="flex justify-between mb-2">
-                                        <span className="font-medium text-sm text-[var(--fg)]">{item.name}</span>
-                                        <span className="font-bold text-blue-600 text-sm">
+                                <div key={item.id} className="p-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg hover:border-blue-400 transition-colors">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="flex-1 min-w-0 pr-2">
+                                            <h4 className="font-semibold text-sm text-[var(--fg)] truncate">{item.name}</h4>
+                                            <p className="text-xs text-[var(--muted)] mt-0.5">PKR {item.price} each</p>
+                                        </div>
+                                        <span className="font-bold text-blue-600 text-sm whitespace-nowrap">
                                             PKR {(item.price * item.quantity).toLocaleString()}
                                         </span>
                                     </div>
 
-                                    {/* ✅ NEW: Quantity Controls with Input */}
+                                    {/* ✅ QUANTITY CONTROLS - NO HOVER */}
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={() => cart.updateQuantity(item.id, item.quantity - 1)}
-                                            className="p-1.5 bg-[var(--card)] border border-[var(--border)] rounded hover:bg-red-600 hover:text-white hover:border-red-600 transition-all active:scale-95"
+                                            disabled={item.quantity <= 1}
+                                            className="p-1.5 bg-red-600 text-white border-2 border-red-600 rounded-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:bg-[var(--bg)] disabled:text-[var(--muted)] disabled:border-[var(--border)]"
+                                            title="Decrease quantity"
                                         >
                                             <Minus className="w-4 h-4" />
                                         </button>
 
-                                        {/* ✅ Editable Quantity Input */}
-                                        <input
-                                            type="text"
-                                            inputMode="numeric"
-                                            value={editingQuantity[item.id] ?? item.quantity}
-                                            onChange={(e) => handleQuantityChange(item.id, e.target.value)}
-                                            onBlur={() => handleQuantityBlur(item.id)}
-                                            onKeyDown={(e) => handleQuantityKeyDown(e, item.id)}
-                                            className="w-16 px-2 py-1 text-center font-semibold text-sm text-[var(--fg)] bg-[var(--card)] border border-[var(--border)] rounded focus:ring-2 focus:ring-blue-600 focus:outline-none"
-                                            maxLength={3}
-                                        />
+                                        {/* ✅ CUSTOM QUANTITY INPUT */}
+                                        <div className="relative flex-shrink-0">
+                                            <input
+                                                type="text"
+                                                inputMode="numeric"
+                                                value={editingQuantity[item.id] !== undefined ? editingQuantity[item.id] : item.quantity}
+                                                onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                                                onFocus={(e) => handleQuantityFocus(e, item.id, item.quantity)}
+                                                onBlur={() => handleQuantityBlur(item.id)}
+                                                onKeyDown={(e) => handleQuantityKeyDown(e, item.id)}
+                                                placeholder="Qty"
+                                                className="w-20 px-3 py-2 text-center font-bold text-sm text-[var(--fg)] bg-[var(--card)] border-2 border-[var(--border)] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all cursor-text"
+                                                maxLength={3}
+                                                title="Click to edit quantity (1-999)"
+                                            />
+                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] pointer-events-none text-[var(--muted)]">
+                                                ✏️
+                                            </span>
+                                        </div>
 
                                         <button
                                             onClick={() => cart.updateQuantity(item.id, item.quantity + 1)}
-                                            className="p-1.5 bg-[var(--card)] border border-[var(--border)] rounded hover:bg-green-600 hover:text-white hover:border-green-600 transition-all active:scale-95"
+                                            disabled={item.quantity >= 999}
+                                            className="p-1.5 bg-green-600 text-white border-2 border-green-600 rounded-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:bg-[var(--bg)] disabled:text-[var(--muted)] disabled:border-[var(--border)]"
+                                            title="Increase quantity"
                                         >
                                             <Plus className="w-4 h-4" />
                                         </button>
 
                                         <button
                                             onClick={() => cart.removeItem(item.id)}
-                                            className="ml-auto px-3 py-1 text-xs text-red-600 font-medium hover:bg-red-600 hover:text-white rounded transition-all active:scale-95"
+                                            className="ml-auto px-3 py-1.5 text-xs bg-red-600 text-white font-medium border border-red-600 rounded-lg transition-all active:scale-95"
+                                            title="Remove item"
                                         >
                                             Remove
                                         </button>
@@ -452,10 +505,41 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                                 <span className="text-[var(--muted)]">Subtotal</span>
                                 <span className="font-medium text-[var(--fg)]">PKR {cart.subtotal().toFixed(2)}</span>
                             </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-[var(--muted)]">Tax (5%)</span>
-                                <span className="font-medium text-[var(--fg)]">PKR {cart.tax().toFixed(2)}</span>
+
+                            {/* ✅ CUSTOM TAX INPUT */}
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-[var(--muted)]">Tax</span>
+                                <div className="flex items-center gap-2">
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={customTaxPercent}
+                                            onChange={(e) => handleTaxChange(e.target.value)}
+                                            onFocus={(e) => {
+                                                e.target.select()
+                                                setEditingTax(true)
+                                            }}
+                                            onBlur={handleTaxBlur}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    (e.target as HTMLInputElement).blur()
+                                                }
+                                            }}
+                                            className="w-14 px-2 py-1 text-center text-xs font-bold text-[var(--fg)] bg-[var(--bg)] border-2 border-[var(--border)] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all cursor-text hover:border-blue-400"
+                                            maxLength={5}
+                                            title="Click to edit tax percentage (0-100%)"
+                                        />
+                                        <span className="absolute -right-1 top-1/2 -translate-y-1/2 text-[10px] font-bold text-[var(--muted)] pointer-events-none">
+                                            %
+                                        </span>
+                                    </div>
+                                    <span className="font-medium text-[var(--fg)] min-w-[80px] text-right">
+                                        PKR {calculateTax().toFixed(2)}
+                                    </span>
+                                </div>
                             </div>
+
                             {orderType === 'delivery' && details.delivery_charges > 0 && (
                                 <div className="flex justify-between text-sm">
                                     <span className="text-[var(--muted)]">Delivery</span>
@@ -465,7 +549,7 @@ export default function CartDrawer({ isOpen, onClose, tables, waiters }: CartDra
                             <div className="flex justify-between text-lg font-bold pt-2 border-t border-[var(--border)]">
                                 <span className="text-[var(--fg)]">Total</span>
                                 <span className="text-blue-600">
-                                    PKR {(cart.total() + (orderType === 'delivery' ? details.delivery_charges : 0)).toFixed(2)}
+                                    PKR {(cart.subtotal() + calculateTax() + (orderType === 'delivery' ? details.delivery_charges : 0)).toFixed(2)}
                                 </span>
                             </div>
                         </div>

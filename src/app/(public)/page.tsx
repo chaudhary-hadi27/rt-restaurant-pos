@@ -1,24 +1,42 @@
-// src/app/(public)/page.tsx - THEME + RESPONSIVE FIX
+// src/app/(public)/page.tsx - PRODUCTION READY
 'use client'
 
-import { useState, useMemo } from 'react'
-import { ShoppingCart, Plus } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { ShoppingCart, Plus, WifiOff } from 'lucide-react'
 import AutoSidebar, { useSidebarItems } from '@/components/layout/AutoSidebar'
 import CartDrawer from '@/components/cart/CartDrawer'
 import { useCart } from '@/lib/store/cart-store'
 import { useHydration } from '@/lib/hooks/useHydration'
-import { useMenuItems, useDataLoader } from '@/lib/hooks'
+import { useSupabase } from '@/lib/hooks'
+import { offlineManager } from '@/lib/db/offlineManager'
 
 export default function MenuPage() {
-    const { data: categories } = useDataLoader({ table: 'menu_categories', filter: { is_active: true }, order: { column: 'display_order' } })
-    const { data: items, loading } = useMenuItems()
-    const { data: tables } = useDataLoader({ table: 'restaurant_tables', select: 'id, table_number, section, status' })
-    const { data: waiters } = useDataLoader({ table: 'waiters', select: 'id, name', filter: { is_active: true } })
+    const { data: categories } = useSupabase('menu_categories', {
+        filter: { is_active: true },
+        order: { column: 'display_order' }
+    })
+
+    const { data: items, loading, isOffline } = useSupabase('menu_items', {
+        filter: { is_available: true },
+        order: { column: 'name' }
+    })
+
+    const { data: tables } = useSupabase('restaurant_tables')
+    const { data: waiters } = useSupabase('waiters', { filter: { is_active: true } })
 
     const cart = useCart()
     const hydrated = useHydration()
     const [selectedCat, setSelectedCat] = useState('all')
     const [cartOpen, setCartOpen] = useState(false)
+    const [isMounted, setIsMounted] = useState(false) // ✅ Track client mount
+
+    // ✅ FIX: Only run navigator code on client
+    useEffect(() => {
+        setIsMounted(true)
+        if (typeof window !== 'undefined' && navigator.onLine) {
+            offlineManager.downloadEssentialData()
+        }
+    }, [])
 
     const filtered = useMemo(
         () => items.filter(i => selectedCat === 'all' || i.category_id === selectedCat),
@@ -39,24 +57,38 @@ export default function MenuPage() {
         <>
             <AutoSidebar items={sidebarItems} title="Categories" />
 
-            {/* ✅ FIX: Theme Variables Applied */}
             <div className="min-h-screen bg-[var(--bg)] lg:ml-64">
-                {/* ✅ FIX: Header with proper theme */}
-                <header className="sticky top-0 z-20 bg-[var(--card)] border-b border-[var(--border)] backdrop-blur-lg bg-opacity-95">
-                    <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
+                {/* Header */}
+                <header className="sticky top-0 z-20 bg-[var(--card)] border-b border-[var(--border)] backdrop-blur-lg shadow-sm">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
                         <div className="flex items-center justify-between gap-3">
                             <div className="flex-1 min-w-0">
-                                <h1 className="text-xl sm:text-2xl font-bold text-[var(--fg)] truncate">Menu</h1>
-                                <p className="text-xs sm:text-sm text-[var(--muted)] mt-0.5">{filtered.length} items available</p>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h1 className="text-xl sm:text-2xl font-bold text-[var(--fg)]">
+                                        Menu
+                                    </h1>
+                                    {/* ✅ Only show after mount */}
+                                    {isMounted && isOffline && (
+                                        <span className="flex items-center gap-1 px-2 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded-full text-xs font-medium text-yellow-600">
+                                            <WifiOff className="w-3 h-3" />
+                                            Offline
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-xs sm:text-sm text-[var(--muted)] mt-1">
+                                    {filtered.length} items available
+                                </p>
                             </div>
+
+                            {/* Cart Button */}
                             <button
                                 onClick={() => setCartOpen(true)}
-                                className="relative px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 font-medium text-sm sm:text-base shadow-lg active:scale-95 transition-all"
+                                className="relative px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 font-medium text-sm sm:text-base shadow-lg active:scale-95 transition-all"
                             >
                                 <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5" />
-                                <span className="hidden xs:inline">Cart</span>
+                                <span className="hidden sm:inline">Cart</span>
                                 {hydrated && cart.itemCount() > 0 && (
-                                    <span className="absolute -top-2 -right-2 w-5 h-5 sm:w-6 sm:h-6 bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg animate-pulse">
+                                    <span className="absolute -top-2 -right-2 min-w-[20px] h-5 sm:min-w-[24px] sm:h-6 px-1 bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg">
                                         {cart.itemCount()}
                                     </span>
                                 )}
@@ -65,67 +97,66 @@ export default function MenuPage() {
                     </div>
                 </header>
 
-                {/* ✅ FIX: Content with proper spacing */}
-                <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+                {/* Content */}
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
                     {loading ? (
                         <div className="flex justify-center py-20">
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
                         </div>
                     ) : filtered.length === 0 ? (
                         <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-12 text-center">
                             <div className="text-5xl mb-4">🍽️</div>
                             <p className="text-[var(--fg)] font-medium mb-2">No items found</p>
-                            <p className="text-sm text-[var(--muted)]">Try selecting a different category</p>
+                            <p className="text-sm text-[var(--muted)]">
+                                {isOffline ? 'Download menu when online' : 'Try selecting a different category'}
+                            </p>
                         </div>
                     ) : (
-                        /* ✅ FIX: Responsive Grid - Better Mobile Layout */
-                        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                            {filtered.map(item => (
+                        // ✅ RESPONSIVE GRID: Perfectly balanced cards
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+
+                        {filtered.map(item => (
                                 <div
                                     key={item.id}
-                                    className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden hover:shadow-xl hover:border-blue-600 transition-all group"
+                                    className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden hover:shadow-xl hover:border-blue-600 transition-all group flex flex-col h-full"
                                 >
-                                    {/* ✅ Image Section */}
+                                    {/* ✅ Fixed Image Container */}
                                     {item.image_url && (
-                                        <div className="relative h-40 sm:h-48 overflow-hidden">
-                                            <img
+                                        <div className="relative w-full aspect-square overflow-hidden bg-[var(--bg)]">
+                                        <img
                                                 src={item.image_url}
                                                 alt={item.name}
                                                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                                loading="lazy"
                                             />
-                                            {/* ✅ Overlay on hover */}
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                         </div>
                                     )}
 
-                                    {/* ✅ Content Section - Better Spacing */}
-                                    <div className="p-3 sm:p-4 space-y-2 sm:space-y-3">
-                                        {/* Name */}
-                                        <h3 className="font-bold text-base sm:text-lg text-[var(--fg)] line-clamp-1 group-hover:text-blue-600 transition-colors">
+                                    {/* ✅ Content - Flex grow to fill space */}
+                                    <div className="p-3 flex flex-col flex-grow">
+                                        <div className="flex-grow space-y-2">
+                                            <h3 className="font-semibold text-sm text-[var(--fg)] leading-snug">
                                             {item.name}
-                                        </h3>
+                                            </h3>
 
-                                        {/* Description */}
-                                        {item.description && (
-                                            <p className="text-xs sm:text-sm text-[var(--muted)] line-clamp-2 leading-relaxed">
+                                            {item.description && (
+                                                <p className="text-xs text-[var(--muted)] leading-relaxed">
                                                 {item.description}
-                                            </p>
-                                        )}
+                                                </p>
+                                            )}
+                                        </div>
 
-                                        {/* ✅ Price + Add Button - Better Mobile Layout */}
-                                        <div className="flex items-center justify-between gap-2 pt-2">
-                                            <div className="flex-1 min-w-0">
-                                                <span className="text-lg sm:text-xl font-bold text-blue-600 block truncate">
-                                                    PKR {item.price}
-                                                </span>
-                                            </div>
-                                            <button
-                                                onClick={() => cart.addItem(item)}
-                                                className="flex-shrink-0 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1.5 sm:gap-2 transition-all font-medium text-sm active:scale-95 shadow-md hover:shadow-lg"
-                                            >
-                                                <Plus className="w-4 h-4" />
-                                                <span>Add</span>
+                                        {/* ✅ Price & Button - Always at bottom */}
+                                        <div className="flex items-center justify-between pt-2 mt-auto">
+                                            <span className="text-sm font-bold text-blue-600">
+                                                PKR {item.price}
+                                            </span>
+
+                                            <button className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md active:scale-95">
+                                                + Add
                                             </button>
+
                                         </div>
                                     </div>
                                 </div>
@@ -135,7 +166,12 @@ export default function MenuPage() {
                 </div>
             </div>
 
-            <CartDrawer isOpen={cartOpen} onClose={() => setCartOpen(false)} tables={tables} waiters={waiters} />
+            <CartDrawer
+                isOpen={cartOpen}
+                onClose={() => setCartOpen(false)}
+                tables={tables}
+                waiters={waiters}
+            />
         </>
     )
 }

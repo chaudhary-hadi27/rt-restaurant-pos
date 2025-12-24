@@ -1,8 +1,10 @@
+// src/components/features/receipt/ReceiptGenerator.tsx - WITH AUTO-PRINT
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Printer, Download, X } from 'lucide-react'
+import { Printer, Download, X, CheckCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { printManager } from '@/lib/utils/autoPrint'
 
 type ReceiptProps = {
     order: {
@@ -21,12 +23,15 @@ type ReceiptProps = {
         }>
     }
     onClose: () => void
+    autoPrint?: boolean // ✅ New prop
 }
 
-export default function ReceiptModal({ order, onClose }: ReceiptProps) {
+export default function ReceiptModal({ order, onClose, autoPrint = true }: ReceiptProps) {
     const [categories, setCategories] = useState<any[]>([])
     const [adminInfo, setAdminInfo] = useState<{ name: string; bio?: string; profile_pic?: string } | null>(null)
     const [downloading, setDownloading] = useState(false)
+    const [printing, setPrinting] = useState(false)
+    const [printed, setPrinted] = useState(false)
     const receiptRef = useRef<HTMLDivElement>(null)
     const supabase = createClient()
 
@@ -34,15 +39,20 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
         loadData()
     }, [])
 
+    // ✅ Auto-print on mount if enabled
+    useEffect(() => {
+        if (autoPrint && receiptRef.current && !printed) {
+            handleAutoPrint()
+        }
+    }, [autoPrint, printed])
+
     const loadData = async () => {
-        // Load categories
         const { data: cats } = await supabase
             .from('menu_categories')
             .select('id, name, icon')
             .order('display_order')
         setCategories(cats || [])
 
-        // Load admin profile
         const storedProfile = localStorage.getItem('admin_profile')
         if (storedProfile) {
             setAdminInfo(JSON.parse(storedProfile))
@@ -59,7 +69,27 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
         return acc
     }, {})
 
-    const handlePrint = () => window.print()
+    // ✅ Auto-print handler
+    const handleAutoPrint = async () => {
+        if (printing || printed) return
+
+        setPrinting(true)
+        try {
+            const success = await printManager.autoPrint('receipt-content')
+            if (success) {
+                setPrinted(true)
+                console.log('✅ Receipt auto-printed')
+            }
+        } catch (error) {
+            console.error('Auto-print failed:', error)
+        } finally {
+            setPrinting(false)
+        }
+    }
+
+    const handleManualPrint = () => {
+        window.print()
+    }
 
     const handleDownload = async () => {
         setDownloading(true)
@@ -99,7 +129,15 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
                 <div className="flex items-center justify-between p-4 sm:p-6 border-b">
                     <div className="flex items-center gap-3">
                         <Printer className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                        <h3 className="text-lg sm:text-xl font-bold text-gray-900">Receipt</h3>
+                        <div>
+                            <h3 className="text-lg sm:text-xl font-bold text-gray-900">Receipt</h3>
+                            {printed && (
+                                <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
+                                    <CheckCircle className="w-3 h-3" />
+                                    Printed
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:opacity-70 text-gray-500">
                         <X className="w-5 h-5" />
@@ -107,9 +145,13 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
                 </div>
 
                 {/* Receipt Content */}
-                <div ref={receiptRef} className="p-4 sm:p-6 font-mono bg-white" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-
-                    {/* 🔥 Admin Info Section */}
+                <div
+                    id="receipt-content"
+                    ref={receiptRef}
+                    className="p-4 sm:p-6 font-mono bg-white"
+                    style={{ maxHeight: '60vh', overflowY: 'auto' }}
+                >
+                    {/* Admin Info */}
                     {adminInfo && (
                         <div className="mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-gray-300">
                             <div className="flex items-center justify-center gap-2 sm:gap-3">
@@ -126,10 +168,7 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
                                 )}
                                 <div className="text-center">
                                     <p className="text-sm sm:text-base font-bold text-gray-900">{adminInfo.name}</p>
-                                    {adminInfo.bio && (
-                                        <p className="text-xs text-gray-600">{adminInfo.bio}</p>
-                                    )}
-                                    <p className="text-xs text-gray-500 mt-0.5">Manager</p>
+                                    {adminInfo.bio && <p className="text-xs text-gray-600">{adminInfo.bio}</p>}
                                 </div>
                             </div>
                         </div>
@@ -172,7 +211,7 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
 
                     <div className="border-t-2 border-dashed my-3 sm:my-4 border-gray-300"></div>
 
-                    {/* Items Grouped by Category */}
+                    {/* Items */}
                     <div className="mb-3 sm:mb-4">
                         {categories
                             .filter(cat => groupedItems[cat.id]?.length > 0)
@@ -236,30 +275,20 @@ export default function ReceiptModal({ order, onClose }: ReceiptProps) {
                         ) : (
                             <>
                                 <Download className="w-4 h-4" />
-                                <span className="hidden sm:inline">Download PNG</span>
+                                <span className="hidden sm:inline">Download</span>
                                 <span className="sm:hidden">Save</span>
                             </>
                         )}
                     </button>
-                    <button onClick={handlePrint} className="flex-1 px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-medium flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 text-sm">
+                    <button
+                        onClick={handleManualPrint}
+                        className="flex-1 px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-medium flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 text-sm"
+                    >
                         <Printer className="w-4 h-4" />
-                        Print
+                        {printing ? 'Printing...' : 'Print Again'}
                     </button>
                 </div>
             </div>
-
-            <style jsx global>{`
-                @media print {
-                    body * { visibility: hidden; }
-                    #receipt-content, #receipt-content * { visibility: visible; }
-                    #receipt-content {
-                        position: absolute;
-                        left: 0;
-                        top: 0;
-                        width: 100%;
-                    }
-                }
-            `}</style>
         </div>
     )
 }

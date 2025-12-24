@@ -1,3 +1,4 @@
+// src/app/admin/attendance/page.tsx - THEME FIXED
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -130,6 +131,7 @@ export default function AdminAttendancePage() {
                     subtitle="Staff attendance tracking"
                     action={
                         <div className="flex gap-2">
+                            {/* ✅ FIXED: Theme-aware date picker */}
                             <div className="flex items-center gap-2 px-3 py-2 bg-[var(--card)] border border-[var(--border)] rounded-lg">
                                 <Calendar className="w-4 h-4 text-[var(--muted)]" />
                                 <input
@@ -137,10 +139,16 @@ export default function AdminAttendancePage() {
                                     value={date}
                                     onChange={(e) => setDate(e.target.value)}
                                     max={new Date().toISOString().split('T')[0]}
-                                    className="bg-transparent text-sm outline-none text-[var(--fg)]"
+                                    className="bg-transparent text-sm outline-none text-[var(--fg)] cursor-pointer"
+                                    style={{
+                                        colorScheme: 'dark' // ✅ Forces dark calendar in dark mode
+                                    }}
                                 />
                             </div>
-                            <button onClick={exportCSV} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm active:scale-95">
+                            <button
+                                onClick={exportCSV}
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm active:scale-95 transition-transform"
+                            >
                                 <Download className="w-4 h-4" />
                                 <span className="hidden sm:inline">Export</span>
                             </button>
