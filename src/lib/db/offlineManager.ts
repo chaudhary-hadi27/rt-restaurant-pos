@@ -1,4 +1,4 @@
-// lib/db/offlineManager.ts - ENHANCED VERSION
+// lib/db/offlineManager.ts - PRODUCTION VERSION
 import { createClient } from '@/lib/supabase/client'
 import { db } from './indexedDB'
 import { STORES } from './schema'
@@ -23,8 +23,43 @@ interface StorageInfo {
 class OfflineManager {
     private isDownloading = false
     private syncInProgress = false
+    private autoCleanupInterval: NodeJS.Timeout | null = null
 
-    // ✅ ENHANCED: Background sync with retry logic
+    constructor() {
+        if (typeof window !== 'undefined') {
+            this.initAutoCleanup()
+            this.initAutoSync()
+        }
+    }
+
+    // ✅ AUTO-CLEANUP: Runs every 6 hours
+    private initAutoCleanup() {
+        this.cleanupOldData() // Run immediately
+        this.autoCleanupInterval = setInterval(() => {
+            this.cleanupOldData()
+        }, 6 * 60 * 60 * 1000) // Every 6 hours
+    }
+
+    // ✅ AUTO-SYNC: When online, sync every 15 minutes
+    private initAutoSync() {
+        if (navigator.onLine) {
+            this.downloadEssentialData()
+        }
+
+        window.addEventListener('online', () => {
+            this.downloadEssentialData()
+            this.syncPendingOrders()
+        })
+
+        // Auto-sync every 15 minutes when online
+        setInterval(() => {
+            if (navigator.onLine) {
+                this.downloadEssentialData()
+            }
+        }, 15 * 60 * 1000)
+    }
+
+    // ✅ DOWNLOAD ESSENTIAL DATA (Menu is permanent, everything else auto-syncs)
     async downloadEssentialData(force = false): Promise<DownloadResult> {
         if (this.isDownloading) return { success: false, message: 'Already downloading...' }
 
@@ -39,9 +74,9 @@ class OfflineManager {
         const supabase = createClient()
 
         try {
-            console.log('📥 Syncing menu data...')
+            console.log('📥 Auto-syncing essential data...')
 
-            // ✅ ENHANCED: Fetch with error handling per table
+            // ✅ Fetch essential data
             const [categories, items, tables, waiters] = await Promise.allSettled([
                 supabase.from('menu_categories').select('*').eq('is_active', true).order('display_order'),
                 supabase.from('menu_items').select('*').eq('is_available', true).order('name'),
@@ -54,7 +89,7 @@ class OfflineManager {
             const tablesData = tables.status === 'fulfilled' ? tables.value.data || [] : []
             const waitersData = waiters.status === 'fulfilled' ? waiters.value.data || [] : []
 
-            // ✅ Store in IndexedDB with versioning
+            // ✅ PERMANENT STORAGE: Menu (never deleted)
             if (categoriesData.length > 0) {
                 await db.bulkPut(STORES.MENU_CATEGORIES, categoriesData)
                 await db.put(STORES.SETTINGS, {
@@ -71,6 +106,7 @@ class OfflineManager {
                 })
             }
 
+            // ✅ TEMPORARY STORAGE: Tables & Waiters (synced frequently)
             if (tablesData.length > 0) {
                 await db.put(STORES.SETTINGS, { key: 'tables', value: tablesData })
             }
@@ -79,11 +115,11 @@ class OfflineManager {
                 await db.put(STORES.SETTINGS, { key: 'waiters', value: waitersData })
             }
 
-            // ✅ ENHANCED: Smart image caching
+            // ✅ Smart image caching (limit to 30 images)
             const imageUrls = itemsData
                 .map(i => i.image_url)
                 .filter(Boolean)
-                .slice(0, 50) // Limit to 50 images
+                .slice(0, 30)
 
             if (imageUrls.length > 0 && navigator.serviceWorker?.controller) {
                 navigator.serviceWorker.controller.postMessage({
@@ -95,7 +131,7 @@ class OfflineManager {
             localStorage.setItem('menu_last_sync', Date.now().toString())
             localStorage.setItem('offline_ready', 'true')
 
-            console.log('✅ Menu synced:', {
+            console.log('✅ Data synced:', {
                 items: itemsData.length,
                 categories: categoriesData.length
             })
@@ -117,50 +153,55 @@ class OfflineManager {
         }
     }
 
-    // ✅ ENHANCED: Smart cleanup with retention policies
+    // ✅ OFFLINE CLEANUP ONLY: 7-day cache + max 200 orders (IndexedDB only)
     async cleanupOldData(): Promise<number> {
         try {
             const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000)
             const orders = await db.getAll(STORES.ORDERS) as any[]
 
+            if (!Array.isArray(orders) || orders.length === 0) {
+                console.log('📦 No offline orders to cleanup')
+                return 0
+            }
+
+            // ✅ Only clean OFFLINE/IndexedDB data (NOT Supabase)
             const oldOrders = orders.filter(o => {
                 const orderTime = new Date(o.created_at).getTime()
                 return orderTime < sevenDaysAgo && o.status === 'completed'
             })
 
-            // ✅ Keep max 200 orders
-            const maxOrders = 200
             const sortedOrders = orders
                 .filter(o => o.status === 'completed')
                 .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-            const ordersToDelete = sortedOrders.slice(maxOrders)
-
+            const ordersToDelete = sortedOrders.slice(200)
             const allDeletes = [...new Set([...oldOrders, ...ordersToDelete])]
 
+            // ✅ Delete from IndexedDB ONLY (NOT Supabase)
             for (const order of allDeletes) {
                 await db.delete(STORES.ORDERS, order.id)
 
-                // Delete related items
                 const items = await db.getAll(STORES.ORDER_ITEMS) as any[]
-                const orderItems = items.filter(i => i.order_id === order.id)
-                for (const item of orderItems) {
-                    await db.delete(STORES.ORDER_ITEMS, item.id)
+                if (Array.isArray(items)) {
+                    const orderItems = items.filter(i => i.order_id === order.id)
+                    for (const item of orderItems) {
+                        await db.delete(STORES.ORDER_ITEMS, item.id)
+                    }
                 }
             }
 
             if (allDeletes.length > 0) {
-                console.log(`🧹 Cleaned ${allDeletes.length} old orders`)
+                console.log(`🧹 Cleaned ${allDeletes.length} old orders from OFFLINE cache (Supabase untouched)`)
             }
 
             return allDeletes.length
         } catch (error) {
-            console.error('Cleanup error:', error)
+            console.error('Offline cleanup error:', error)
             return 0
         }
     }
 
-    // ✅ NEW: Background sync for pending orders
+    // ✅ AUTO-SYNC PENDING ORDERS
     async syncPendingOrders(): Promise<{ success: boolean; synced: number }> {
         if (this.syncInProgress || !navigator.onLine) {
             return { success: false, synced: 0 }
@@ -171,19 +212,24 @@ class OfflineManager {
 
         try {
             const orders = await db.getAll(STORES.ORDERS) as any[]
+
+            // ✅ Safety check
+            if (!Array.isArray(orders)) {
+                console.warn('⚠️ Orders is not an array')
+                return { success: false, synced: 0 }
+            }
+
             const pendingOrders = orders.filter(o => !o.synced)
 
             const supabase = createClient()
 
             for (const order of pendingOrders) {
                 try {
-                    // Upload to Supabase
                     const { error } = await supabase
                         .from('orders')
                         .insert(order)
 
                     if (!error) {
-                        // Mark as synced
                         await db.put(STORES.ORDERS, { ...order, synced: true })
                         syncedCount++
                     }
@@ -192,7 +238,7 @@ class OfflineManager {
                 }
             }
 
-            console.log(`✅ Synced ${syncedCount}/${pendingOrders.length} orders`)
+            console.log(`✅ Auto-synced ${syncedCount}/${pendingOrders.length} orders`)
             return { success: true, synced: syncedCount }
         } catch (error) {
             console.error('Sync error:', error)
@@ -202,7 +248,28 @@ class OfflineManager {
         }
     }
 
-    // ✅ ENHANCED: Storage info with versioning
+    // ✅ SAFE DATA RETRIEVAL (Always returns array)
+    async getOfflineData(store: string): Promise<any[]> {
+        try {
+            if (store === 'restaurant_tables' || store === 'waiters') {
+                const data = await db.get(STORES.SETTINGS, store) as { value?: any[] } | undefined
+                return Array.isArray(data?.value) ? data.value : []
+            }
+            const data = await db.getAll(store)
+            return Array.isArray(data) ? data : []
+        } catch (error) {
+            console.error(`Error getting ${store}:`, error)
+            return [] // ✅ Always return array
+        }
+    }
+
+    // ✅ STORAGE INFO
+    // ✅ DELETE OLD HISTORY (No longer needed - replaced by auto-cleanup)
+    async deleteOldHistory(type: 'monthly' | 'yearly'): Promise<{ success: boolean; deleted: number }> {
+        console.warn('⚠️ Manual history deletion disabled. Using auto-cleanup (7 days).')
+        return { success: false, deleted: 0 }
+    }
+
     async getStorageInfo(): Promise<StorageInfo> {
         try {
             const [orders, menuItems, menuVersion, categoriesVersion] = await Promise.all([
@@ -212,26 +279,29 @@ class OfflineManager {
                 db.get(STORES.SETTINGS, 'categories_version')
             ])
 
-            const menuSize = (menuItems?.length || 0) * 2
-            const ordersSize = (orders?.length || 0) * 5
-            const imagesSize = (menuItems?.filter(i => i.image_url)?.length || 0) * 100
+            // ✅ Safety checks
+            const safeOrders = Array.isArray(orders) ? orders : []
+            const safeMenuItems = Array.isArray(menuItems) ? menuItems : []
+
+            const menuSize = safeMenuItems.length * 2
+            const ordersSize = safeOrders.length * 5
+            const imagesSize = safeMenuItems.filter(i => i.image_url).length * 100
 
             const estimate = await navigator.storage?.estimate?.() || { usage: 0, quota: 0 }
             const used = Math.round((estimate.usage || 0) / 1024 / 1024)
             const limit = Math.round((estimate.quota || 0) / 1024 / 1024)
 
-            // ✅ Check data freshness
             const hasData = await this.isOfflineReady()
             const dataAge = menuVersion ? Date.now() - (menuVersion as any).value : Infinity
-            const isFresh = dataAge < 24 * 60 * 60 * 1000 // 24 hours
+            const isFresh = dataAge < 24 * 60 * 60 * 1000
 
             return {
                 used,
                 limit,
                 percentage: limit > 0 ? Math.round((used / limit) * 100) : 0,
                 hasData: hasData && isFresh,
-                ordersCount: orders?.length || 0,
-                menuItemsCount: menuItems?.length || 0,
+                ordersCount: safeOrders.length,
+                menuItemsCount: safeMenuItems.length,
                 breakdown: {
                     menu: menuSize,
                     orders: ordersSize,
@@ -252,16 +322,20 @@ class OfflineManager {
         }
     }
 
-    // Existing methods remain the same...
+    // ✅ DELETE WITH CLOUDINARY CLEANUP (Online only)
     async deleteMenuItem(id: string, imageUrl?: string): Promise<{ success: boolean; error?: string }> {
         try {
+            // Delete from IndexedDB
             await db.delete(STORES.MENU_ITEMS, id)
 
             if (navigator.onLine) {
                 const supabase = createClient()
+
+                // ✅ Delete from Supabase (ONLINE only)
                 const { error } = await supabase.from('menu_items').delete().eq('id', id)
                 if (error) throw error
 
+                // ✅ Delete from Cloudinary (ONLINE only)
                 if (imageUrl?.includes('cloudinary')) {
                     const publicId = imageUrl.split('/').slice(-2).join('/').split('.')[0]
                     await fetch('/api/upload/cloudinary', {
@@ -270,67 +344,16 @@ class OfflineManager {
                         body: JSON.stringify({ public_id: publicId })
                     }).catch(err => console.warn('Cloudinary delete failed:', err))
                 }
+
+                console.log('✅ Menu item deleted (Supabase + Cloudinary + Offline cache)')
+            } else {
+                console.log('⚠️ Offline: Deleted from cache only. Will sync when online.')
             }
 
-            console.log('✅ Menu item deleted:', id)
             return { success: true }
         } catch (error: any) {
             console.error('Delete error:', error)
             return { success: false, error: error.message }
-        }
-    }
-
-    async deleteOldHistory(type: 'monthly' | 'yearly'): Promise<{ success: boolean; deleted: number }> {
-        try {
-            const cutoffDays = type === 'monthly' ? 30 : 365
-            const cutoffTime = Date.now() - (cutoffDays * 24 * 60 * 60 * 1000)
-
-            const orders = await db.getAll(STORES.ORDERS) as any[]
-            const oldOrders = orders.filter(o => {
-                const orderTime = new Date(o.created_at).getTime()
-                return orderTime < cutoffTime
-            })
-
-            for (const order of oldOrders) {
-                await db.delete(STORES.ORDERS, order.id)
-
-                const items = await db.getAll(STORES.ORDER_ITEMS) as any[]
-                const orderItems = items.filter(i => i.order_id === order.id)
-                for (const item of orderItems) {
-                    await db.delete(STORES.ORDER_ITEMS, item.id)
-                }
-            }
-
-            if (navigator.onLine) {
-                const supabase = createClient()
-                const cutoffDate = new Date(cutoffTime).toISOString()
-
-                await supabase.from('order_items').delete()
-                    .in('order_id', oldOrders.map(o => o.id))
-
-                await supabase.from('orders').delete()
-                    .lt('created_at', cutoffDate)
-            }
-
-            console.log(`🗑️ Deleted ${oldOrders.length} ${type} orders`)
-            return { success: true, deleted: oldOrders.length }
-        } catch (error) {
-            console.error('History delete error:', error)
-            return { success: false, deleted: 0 }
-        }
-    }
-
-    async getOfflineData(store: string): Promise<any[]> {
-        try {
-            if (store === 'restaurant_tables' || store === 'waiters') {
-                const data = await db.get(STORES.SETTINGS, store) as { value?: any[] } | undefined
-                return data?.value || []
-            }
-            const data = await db.getAll(store)
-            return Array.isArray(data) ? data : []
-        } catch (error) {
-            console.error(`Error getting ${store}:`, error)
-            return []
         }
     }
 
@@ -358,6 +381,13 @@ class OfflineManager {
         await Promise.all(storesToClear.map(store => db.clear(store)))
         console.log(`🗑️ Cleared data (menu ${includeMenu ? 'included' : 'preserved'})`)
     }
+
+    // ✅ Cleanup on destroy
+    destroy() {
+        if (this.autoCleanupInterval) {
+            clearInterval(this.autoCleanupInterval)
+        }
+    }
 }
 
 export const offlineManager = new OfflineManager()
@@ -366,7 +396,6 @@ export const offlineManager = new OfflineManager()
 if (typeof window !== 'undefined') {
     offlineManager.cleanupOldData()
 
-    // ✅ Setup background sync when online
     window.addEventListener('online', () => {
         offlineManager.syncPendingOrders()
     })

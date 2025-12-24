@@ -1,4 +1,4 @@
-// src/components/layout/UnifiedSidebar.tsx - FIXED VERSION
+// src/components/layout/UnifiedSidebar.tsx - FIXED OVERFLOW
 "use client"
 
 import Link from "next/link"
@@ -86,14 +86,13 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                 />
             )}
 
-            {/* Main Sidebar - NO ANIMATIONS */}
+            {/* ✅ FIXED: Main Sidebar - Proper positioning with overflow-y-auto */}
             <aside
-                className={`fixed top-0 left-0 h-screen w-16 bg-[var(--card)] border-r border-[var(--border)] flex flex-col z-50 lg:translate-x-0 ${
+                className={`fixed top-0 left-0 h-screen w-16 bg-[var(--card)] border-r border-[var(--border)] flex flex-col z-50 transition-transform duration-300 lg:transition-none lg:translate-x-0 ${
                     open ? "translate-x-0" : "-translate-x-full"
                 }`}
-                style={{ transition: 'none' }}
             >
-                {/* Logo */}
+                {/* Logo - Fixed */}
                 <Link
                     href={isAdmin ? "/admin" : "/"}
                     className="h-16 flex items-center justify-center border-b border-[var(--border)] flex-shrink-0"
@@ -104,8 +103,8 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                     </div>
                 </Link>
 
-                {/* Navigation */}
-                <nav className="flex-1 py-2 px-2 space-y-1 overflow-y-auto scrollbar-hide">
+                {/* ✅ FIXED: Navigation - Scrollable with proper overflow */}
+                <nav className="flex-1 py-2 px-2 space-y-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
                     {items.map(item => {
                         const Icon = item.icon
                         const active = pathname === item.href || (item.href !== "/" && item.href !== "/admin" && pathname.startsWith(item.href))
@@ -117,11 +116,11 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                                     onClick={() => setOpen(false)}
                                     className="block"
                                 >
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center active:scale-95 ${
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors active:scale-95 ${
                                         active
                                             ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg"
-                                            : "text-[var(--muted)] bg-[var(--bg)]"
-                                    }`} style={{ transition: 'none' }}>
+                                            : "text-[var(--muted)] bg-[var(--bg)] hover:bg-[var(--border)]"
+                                    }`}>
                                         <Icon className="w-5 h-5" />
                                     </div>
                                 </Link>
@@ -140,7 +139,7 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                     })}
                 </nav>
 
-                {/* Bottom Actions */}
+                {/* Bottom Actions - Fixed */}
                 <div className="p-2 border-t border-[var(--border)] space-y-1 flex-shrink-0">
                     {/* Command Palette */}
                     <div className="relative group">
@@ -149,8 +148,7 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                                 onCommandOpen?.()
                                 setOpen(false)
                             }}
-                            className="w-12 h-12 rounded-xl flex items-center justify-center text-[var(--muted)] bg-[var(--bg)] active:scale-95"
-                            style={{ transition: 'none' }}
+                            className="w-12 h-12 rounded-xl flex items-center justify-center text-[var(--muted)] bg-[var(--bg)] hover:bg-[var(--border)] active:scale-95 transition-colors"
                         >
                             <Command className="w-5 h-5" />
                         </button>
@@ -164,8 +162,7 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                     <div className="relative group">
                         <button
                             onClick={toggleTheme}
-                            className="w-12 h-12 rounded-xl flex items-center justify-center bg-[var(--bg)] active:scale-95"
-                            style={{ transition: 'none' }}
+                            className="w-12 h-12 rounded-xl flex items-center justify-center bg-[var(--bg)] hover:bg-[var(--border)] active:scale-95 transition-colors"
                         >
                             {theme === "dark" ? (
                                 <Sun className="w-5 h-5 text-yellow-500" />
@@ -185,12 +182,11 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                     <div className="relative group">
                         <button
                             onClick={() => setShowMoreMenu(!showMoreMenu)}
-                            className={`w-12 h-12 rounded-xl flex items-center justify-center active:scale-95 ${
+                            className={`w-12 h-12 rounded-xl flex items-center justify-center active:scale-95 transition-colors ${
                                 showMoreMenu
                                     ? 'bg-blue-600 text-white'
-                                    : 'text-[var(--muted)] bg-[var(--bg)]'
+                                    : 'text-[var(--muted)] bg-[var(--bg)] hover:bg-[var(--border)]'
                             }`}
-                            style={{ transition: 'none' }}
                         >
                             <MoreVertical className="w-5 h-5" />
                         </button>
@@ -205,35 +201,30 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
             {/* More Menu Popup */}
             {showMoreMenu && (
                 <>
-                    {/* Backdrop */}
                     <div
                         className="fixed inset-0 z-[60]"
                         onClick={() => setShowMoreMenu(false)}
                     />
 
-                    {/* Menu */}
                     <div className="fixed left-20 bottom-4 z-[70] w-64 bg-[var(--card)] border-2 border-blue-600/50 rounded-xl shadow-2xl">
-                        {/* Header */}
                         <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
                             <h3 className="font-bold text-[var(--fg)]">More Options</h3>
                             <button
                                 onClick={() => setShowMoreMenu(false)}
-                                className="p-1 rounded-lg"
+                                className="p-1 rounded-lg hover:bg-[var(--bg)]"
                             >
                                 <X className="w-4 h-4 text-[var(--muted)]" />
                             </button>
                         </div>
 
-                        {/* Options */}
                         <div className="p-2">
-                            {/* Storage Info */}
                             <button
                                 onClick={() => {
                                     setShowStorage(true)
                                     setShowMoreMenu(false)
                                     setOpen(false)
                                 }}
-                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left"
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-[var(--bg)]"
                             >
                                 <div className="w-10 h-10 rounded-lg bg-purple-600/10 flex items-center justify-center">
                                     <Database className="w-5 h-5 text-purple-600" />
@@ -244,18 +235,17 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                                 </div>
                             </button>
 
-                            {/* ✅ Install PWA - ALWAYS SHOW */}
                             <button
                                 onClick={() => {
                                     if (installPrompt) {
                                         handleInstall()
                                     } else {
-                                        alert('App is already installed or not available for installation')
+                                        alert('App is already installed or not available')
                                     }
                                     setShowMoreMenu(false)
                                     setOpen(false)
                                 }}
-                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left"
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-[var(--bg)]"
                             >
                                 <div className="w-10 h-10 rounded-lg bg-green-600/10 flex items-center justify-center">
                                     <Download className="w-5 h-5 text-green-600" />
@@ -268,14 +258,13 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                                 </div>
                             </button>
 
-                            {/* Switch Context */}
                             <Link
                                 href={isAdmin ? "/" : "/admin"}
                                 onClick={() => {
                                     setShowMoreMenu(false)
                                     setOpen(false)
                                 }}
-                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left"
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-[var(--bg)]"
                             >
                                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                                     isAdmin ? 'bg-orange-600/10' : 'bg-blue-600/10'
@@ -297,7 +286,6 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                             </Link>
                         </div>
 
-                        {/* Footer */}
                         <div className="p-3 border-t border-[var(--border)] bg-[var(--bg)] rounded-b-xl">
                             <p className="text-xs text-center text-[var(--muted)]">
                                 {isAdmin ? '🛡️ Admin Mode' : '🍽️ Restaurant Mode'}
@@ -307,7 +295,6 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                 </>
             )}
 
-            {/* Storage Info Modal */}
             <StorageInfo
                 open={showStorage}
                 onClose={() => setShowStorage(false)}
