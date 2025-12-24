@@ -122,8 +122,8 @@ export default function AutoSidebar({ items, title }: { items: SidebarItem[]; ti
             )}
 
             {/* Desktop: Fixed Nested Sidebar - Starts after UnifiedSidebar (64px) */}
-            <aside className="hidden lg:block fixed top-0 left-16 h-screen w-64 bg-[var(--card)] border-r border-[var(--border)] z-30">
-                {title && (
+            <aside className="hidden lg:block fixed top-0 left-16 h-screen w-64 min-w-64 max-w-64 bg-[var(--card)] border-r border-[var(--border)] z-30 overflow-y-auto overflow-x-hidden">
+            {title && (
                     <div className="h-16 flex items-center px-4 border-b border-[var(--border)]">
                         <h3 className="font-semibold text-[var(--fg)]">{title}</h3>
                     </div>
