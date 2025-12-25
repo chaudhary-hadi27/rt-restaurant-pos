@@ -1,9 +1,8 @@
-// src/lib/db/offlineManager.ts - ENHANCED WITH SYNC EVENTS
+// src/lib/db/offlineManager.ts - ENHANCED OFFLINE SUPPORT
 import { createClient } from '@/lib/supabase/client'
 import { db } from './indexedDB'
 import { STORES } from './schema'
 
-// ✅ Dispatch sync events for UI indicators
 const dispatchSyncEvent = (type: string, detail: any) => {
     if (typeof window === 'undefined') return
     window.dispatchEvent(new CustomEvent(type, { detail }))
@@ -66,7 +65,6 @@ class OfflineManager {
         const supabase = createClient()
 
         try {
-            // ✅ Start sync event
             dispatchSyncEvent('sync-start', {
                 direction: 'download',
                 total: 4,
@@ -141,7 +139,6 @@ class OfflineManager {
             localStorage.setItem('menu_last_sync', Date.now().toString())
             localStorage.setItem('offline_ready', 'true')
 
-            // ✅ Complete sync event
             dispatchSyncEvent('sync-complete', {
                 categories: categoriesData.length,
                 items: itemsData.length,
@@ -234,7 +231,6 @@ class OfflineManager {
             const pendingOrders = orders.filter(o => !o.synced)
 
             if (pendingOrders.length > 0) {
-                // ✅ Upload start event
                 dispatchSyncEvent('sync-start', {
                     direction: 'upload',
                     total: pendingOrders.length,
@@ -255,7 +251,6 @@ class OfflineManager {
                         await db.put(STORES.ORDERS, { ...order, synced: true })
                         syncedCount++
 
-                        // ✅ Upload progress
                         const progress = Math.round(((i + 1) / pendingOrders.length) * 100)
                         dispatchSyncEvent('sync-progress', {
                             progress,

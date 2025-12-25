@@ -47,7 +47,6 @@ export default function HistoryPage() {
                     .order('created_at', { ascending: false })
                     .limit(500)
 
-                // ✅ FIX: Safe array handling
                 const safeOrders = Array.isArray(orders) ? orders : []
                 setData(safeOrders)
 
@@ -163,34 +162,78 @@ export default function HistoryPage() {
 
     const columns: any = {
         recent: [
-            { key: 'order', label: 'Order', render: (r: any) => (
-                    <div>
-                        <p className="font-medium text-sm">#{r.id.slice(0, 8).toUpperCase()}</p>
-                        <p className="text-xs text-[var(--muted)]">{new Date(r.created_at).toLocaleString()}</p>
-                    </div>
-                )},
-            { key: 'waiter', label: 'Waiter', mobileHidden: true, render: (r: any) => r.waiters?.name || 'N/A' },
+            {
+                key: 'order',
+                label: 'Order',
+                render: (r: any) => {
+                    // ✅ FIX: Safe null check for r.id
+                    const orderId = r?.id ? String(r.id) : 'N/A'
+                    const orderNumber = orderId !== 'N/A' ? orderId.slice(0, 8).toUpperCase() : 'N/A'
+
+                    return (
+                        <div>
+                            <p className="font-medium text-sm">#{orderNumber}</p>
+                            <p className="text-xs text-[var(--muted)]">
+                                {r?.created_at ? new Date(r.created_at).toLocaleString() : 'Unknown'}
+                            </p>
+                        </div>
+                    )
+                }
+            },
+            { key: 'waiter', label: 'Waiter', mobileHidden: true, render: (r: any) => r?.waiters?.name || 'N/A' },
             { key: 'items', label: 'Items', render: (r: any) => {
-                    const items = Array.isArray(r.order_items) ? r.order_items : []
+                    const items = Array.isArray(r?.order_items) ? r.order_items : []
                     return items.length
-                }},
-            { key: 'amount', label: 'Amount', align: 'right' as const, render: (r: any) => <span className="font-bold text-blue-600">PKR {r.total_amount.toLocaleString()}</span> }
+                }
+            },
+            {
+                key: 'amount',
+                label: 'Amount',
+                align: 'right' as const,
+                render: (r: any) => (
+                    <span className="font-bold text-blue-600">
+                        PKR {(r?.total_amount || 0).toLocaleString()}
+                    </span>
+                )
+            }
         ],
         waiters: [
             { key: 'waiter', label: 'Waiter', render: (r: any) => (
                     <div className="flex items-center gap-2">
-                        {r.profile_pic ? <img src={r.profile_pic} alt="" className="w-8 h-8 rounded-full" /> :
-                            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">{r.waiter_name?.[0] || '?'}</div>}
-                        <span>{r.waiter_name || 'N/A'}</span>
+                        {r?.profile_pic ? <img src={r.profile_pic} alt="" className="w-8 h-8 rounded-full" /> :
+                            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">
+                                {r?.waiter_name?.[0] || '?'}
+                            </div>
+                        }
+                        <span>{r?.waiter_name || 'N/A'}</span>
                     </div>
-                )},
-            { key: 'orders', label: 'Orders', render: (r: any) => r.total_orders || 0 },
-            { key: 'revenue', label: 'Revenue', align: 'right' as const, render: (r: any) => <span className="font-bold text-green-600">PKR {(r.total_revenue || 0).toLocaleString()}</span> }
+                )
+            },
+            { key: 'orders', label: 'Orders', render: (r: any) => r?.total_orders || 0 },
+            {
+                key: 'revenue',
+                label: 'Revenue',
+                align: 'right' as const,
+                render: (r: any) => (
+                    <span className="font-bold text-green-600">
+                        PKR {(r?.total_revenue || 0).toLocaleString()}
+                    </span>
+                )
+            }
         ],
         menu: [
-            { key: 'item', label: 'Item', render: (r: any) => r.item_name || 'N/A' },
-            { key: 'quantity', label: 'Sold', render: (r: any) => r.total_quantity || 0 },
-            { key: 'revenue', label: 'Revenue', align: 'right' as const, render: (r: any) => <span className="font-bold text-blue-600">PKR {(r.total_revenue || 0).toLocaleString()}</span> }
+            { key: 'item', label: 'Item', render: (r: any) => r?.item_name || 'N/A' },
+            { key: 'quantity', label: 'Sold', render: (r: any) => r?.total_quantity || 0 },
+            {
+                key: 'revenue',
+                label: 'Revenue',
+                align: 'right' as const,
+                render: (r: any) => (
+                    <span className="font-bold text-blue-600">
+                        PKR {(r?.total_revenue || 0).toLocaleString()}
+                    </span>
+                )
+            }
         ]
     }
 
@@ -221,7 +264,10 @@ export default function HistoryPage() {
                                     <option value="year">Last Year</option>
                                     <option value="all">All Time</option>
                                 </select>
-                                <button onClick={exportCSV} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 text-sm active:scale-95">
+                                <button
+                                    onClick={exportCSV}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 text-sm active:scale-95"
+                                >
                                     <Download className="w-4 h-4" />
                                     Export
                                 </button>
