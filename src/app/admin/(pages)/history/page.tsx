@@ -40,13 +40,14 @@ export default function HistoryPage() {
 
         try {
             if (category === 'recent') {
-                const { data: orders } = await supabase
+                const { data: orders, error } = await supabase
                     .from('orders')
                     .select('*, waiters(name), restaurant_tables(table_number), order_items(quantity, total_price, menu_items(name))')
                     .gte('created_at', startDate.toISOString())
                     .order('created_at', { ascending: false })
                     .limit(500)
 
+                // ✅ FIX: Safe array handling
                 const safeOrders = Array.isArray(orders) ? orders : []
                 setData(safeOrders)
 
@@ -54,31 +55,30 @@ export default function HistoryPage() {
                 const totalRevenue = completed.reduce((s, o) => s + (o.total_amount || 0), 0)
                 const avgOrder = completed.length > 0 ? totalRevenue / completed.length : 0
 
-                // ✅ FIX: Pass icon as JSX element, not component reference
                 setStats([
                     {
                         label: 'Total Orders',
                         value: safeOrders.length,
                         color: '#3b82f6',
-                        icon: <ShoppingCart className="w-6 h-6" /> // ✅ Rendered element
+                        icon: <ShoppingCart className="w-6 h-6" />
                     },
                     {
                         label: 'Completed',
                         value: completed.length,
                         color: '#10b981',
-                        icon: <TrendingUp className="w-6 h-6" /> // ✅ Rendered element
+                        icon: <TrendingUp className="w-6 h-6" />
                     },
                     {
                         label: 'Total Revenue',
                         value: `PKR ${totalRevenue.toLocaleString()}`,
                         color: '#f59e0b',
-                        icon: <DollarSign className="w-6 h-6" /> // ✅ Rendered element
+                        icon: <DollarSign className="w-6 h-6" />
                     },
                     {
                         label: 'Avg Order',
                         value: `PKR ${Math.round(avgOrder)}`,
                         color: '#8b5cf6',
-                        icon: <TrendingUp className="w-6 h-6" /> // ✅ Rendered element
+                        icon: <TrendingUp className="w-6 h-6" />
                     }
                 ])
             } else if (category === 'waiters') {
@@ -144,6 +144,7 @@ export default function HistoryPage() {
         } catch (error) {
             console.error('Error loading data:', error)
             setData([])
+            setStats([])
         }
         setLoading(false)
     }
@@ -204,8 +205,7 @@ export default function HistoryPage() {
             <>
                 <AutoSidebar items={sidebarItems} title="Reports" />
 
-                {/* ✅ FIX: Remove left margin when sidebar is present */}
-                <div className="lg:ml-64"> {/* Changed from lg:ml-64 to match AutoSidebar width */}
+                <div className="lg:ml-64">
                     <PageHeader
                         title="History & Reports"
                         subtitle="Full online history • Offline: Last 7 days cached"
@@ -230,7 +230,6 @@ export default function HistoryPage() {
                     />
 
                     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-                        {/* Info Banner */}
                         <div className="p-4 bg-blue-600/10 border border-blue-600/30 rounded-lg">
                             <div className="flex items-center gap-2">
                                 <Calendar className="w-5 h-5 text-blue-600" />

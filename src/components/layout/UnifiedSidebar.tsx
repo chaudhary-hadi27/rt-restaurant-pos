@@ -1,4 +1,4 @@
-// src/components/layout/UnifiedSidebar.tsx - FIXED OVERFLOW
+// src/components/layout/UnifiedSidebar.tsx - FIXED TOGGLE POSITION
 "use client"
 
 import Link from "next/link"
@@ -69,13 +69,13 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
 
     return (
         <>
-            {/* Mobile Toggle Button */}
+            {/* ✅ FIXED: Mobile Toggle - Bottom Right (Not blocking POS) */}
             <button
                 onClick={() => setOpen(true)}
-                className="lg:hidden fixed top-4 left-4 z-40 p-2.5 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg active:scale-95 transition-all"
+                className="lg:hidden fixed bottom-20 right-4 z-40 p-3 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-2xl active:scale-95 transition-all hover:shadow-blue-600/50"
                 aria-label="Open menu"
             >
-                <Menu className="w-5 h-5" />
+                <Menu className="w-6 h-6" />
             </button>
 
             {/* Mobile Overlay */}
@@ -86,13 +86,13 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                 />
             )}
 
-            {/* ✅ FIXED: Main Sidebar - Proper positioning with overflow-y-auto */}
+            {/* Main Sidebar */}
             <aside
                 className={`fixed top-0 left-0 h-screen w-16 bg-[var(--card)] border-r border-[var(--border)] flex flex-col z-50 transition-transform duration-300 lg:transition-none lg:translate-x-0 ${
                     open ? "translate-x-0" : "-translate-x-full"
                 }`}
             >
-                {/* Logo - Fixed */}
+                {/* Logo */}
                 <Link
                     href={isAdmin ? "/admin" : "/"}
                     className="h-16 flex items-center justify-center border-b border-[var(--border)] flex-shrink-0"
@@ -103,7 +103,7 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                     </div>
                 </Link>
 
-                {/* ✅ FIXED: Navigation - Scrollable with proper overflow */}
+                {/* Navigation */}
                 <nav className="flex-1 py-2 px-2 space-y-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
                     {items.map(item => {
                         const Icon = item.icon
@@ -124,13 +124,7 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                                         <Icon className="w-5 h-5" />
                                     </div>
                                 </Link>
-
-                                {/* Desktop Tooltip */}
-                                <span className={TOOLTIP_CLASS}>
-                                    {item.label}
-                                </span>
-
-                                {/* Mobile Label */}
+                                <span className={TOOLTIP_CLASS}>{item.label}</span>
                                 <span className="lg:hidden block text-center text-[10px] font-medium mt-0.5 text-[var(--muted)] truncate px-1">
                                     {item.label}
                                 </span>
@@ -139,7 +133,7 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                     })}
                 </nav>
 
-                {/* Bottom Actions - Fixed */}
+                {/* Bottom Actions */}
                 <div className="p-2 border-t border-[var(--border)] space-y-1 flex-shrink-0">
                     {/* Command Palette */}
                     <div className="relative group">
@@ -153,9 +147,6 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                             <Command className="w-5 h-5" />
                         </button>
                         <span className={TOOLTIP_CLASS}>Quick Actions</span>
-                        <span className="lg:hidden block text-center text-[10px] font-medium mt-0.5 text-[var(--muted)]">
-                            Quick
-                        </span>
                     </div>
 
                     {/* Theme Toggle */}
@@ -173,12 +164,9 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                         <span className={TOOLTIP_CLASS}>
                             {theme === "dark" ? "Light Mode" : "Dark Mode"}
                         </span>
-                        <span className="lg:hidden block text-center text-[10px] font-medium mt-0.5 text-[var(--muted)]">
-                            Theme
-                        </span>
                     </div>
 
-                    {/* More Menu Button */}
+                    {/* More Menu */}
                     <div className="relative group">
                         <button
                             onClick={() => setShowMoreMenu(!showMoreMenu)}
@@ -191,9 +179,6 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                             <MoreVertical className="w-5 h-5" />
                         </button>
                         <span className={TOOLTIP_CLASS}>More Options</span>
-                        <span className="lg:hidden block text-center text-[10px] font-medium mt-0.5 text-[var(--muted)]">
-                            More
-                        </span>
                     </div>
                 </div>
             </aside>
@@ -201,18 +186,11 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
             {/* More Menu Popup */}
             {showMoreMenu && (
                 <>
-                    <div
-                        className="fixed inset-0 z-[60]"
-                        onClick={() => setShowMoreMenu(false)}
-                    />
-
+                    <div className="fixed inset-0 z-[60]" onClick={() => setShowMoreMenu(false)} />
                     <div className="fixed left-20 bottom-4 z-[70] w-64 bg-[var(--card)] border-2 border-blue-600/50 rounded-xl shadow-2xl">
                         <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
                             <h3 className="font-bold text-[var(--fg)]">More Options</h3>
-                            <button
-                                onClick={() => setShowMoreMenu(false)}
-                                className="p-1 rounded-lg hover:bg-[var(--bg)]"
-                            >
+                            <button onClick={() => setShowMoreMenu(false)} className="p-1 rounded-lg hover:bg-[var(--bg)]">
                                 <X className="w-4 h-4 text-[var(--muted)]" />
                             </button>
                         </div>
@@ -285,20 +263,11 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                                 </div>
                             </Link>
                         </div>
-
-                        <div className="p-3 border-t border-[var(--border)] bg-[var(--bg)] rounded-b-xl">
-                            <p className="text-xs text-center text-[var(--muted)]">
-                                {isAdmin ? '🛡️ Admin Mode' : '🍽️ Restaurant Mode'}
-                            </p>
-                        </div>
                     </div>
                 </>
             )}
 
-            <StorageInfo
-                open={showStorage}
-                onClose={() => setShowStorage(false)}
-            />
+            <StorageInfo open={showStorage} onClose={() => setShowStorage(false)} />
         </>
     )
 }
