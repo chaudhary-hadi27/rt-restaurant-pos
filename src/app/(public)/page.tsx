@@ -1,4 +1,4 @@
-// src/app/(public)/page.tsx - PRODUCTION READY
+// src/app/(public)/page.tsx - FIXED ADD BUTTON
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
@@ -28,9 +28,8 @@ export default function MenuPage() {
     const hydrated = useHydration()
     const [selectedCat, setSelectedCat] = useState('all')
     const [cartOpen, setCartOpen] = useState(false)
-    const [isMounted, setIsMounted] = useState(false) // ✅ Track client mount
+    const [isMounted, setIsMounted] = useState(false)
 
-    // ✅ FIX: Only run navigator code on client
     useEffect(() => {
         setIsMounted(true)
         if (typeof window !== 'undefined' && navigator.onLine) {
@@ -53,6 +52,22 @@ export default function MenuPage() {
         }))
     ], selectedCat, setSelectedCat)
 
+    // ✅ FIX: Add to cart handler
+    const handleAddToCart = (item: any) => {
+        if (!hydrated) return
+
+        cart.addItem({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            image_url: item.image_url
+        })
+
+        // Show cart temporarily
+        setCartOpen(true)
+        setTimeout(() => setCartOpen(false), 1500)
+    }
+
     return (
         <>
             <AutoSidebar items={sidebarItems} title="Categories" />
@@ -67,7 +82,6 @@ export default function MenuPage() {
                                     <h1 className="text-xl sm:text-2xl font-bold text-[var(--fg)]">
                                         Menu
                                     </h1>
-                                    {/* ✅ Only show after mount */}
                                     {isMounted && isOffline && (
                                         <span className="flex items-center gap-1 px-2 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded-full text-xs font-medium text-yellow-600">
                                             <WifiOff className="w-3 h-3" />
@@ -112,18 +126,15 @@ export default function MenuPage() {
                             </p>
                         </div>
                     ) : (
-                        // ✅ RESPONSIVE GRID: Perfectly balanced cards
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-
-                        {filtered.map(item => (
+                            {filtered.map(item => (
                                 <div
                                     key={item.id}
                                     className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden hover:shadow-xl hover:border-blue-600 transition-all group flex flex-col h-full"
                                 >
-                                    {/* ✅ Fixed Image Container */}
                                     {item.image_url && (
                                         <div className="relative w-full aspect-square overflow-hidden bg-[var(--bg)]">
-                                        <img
+                                            <img
                                                 src={item.image_url}
                                                 alt={item.name}
                                                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
@@ -133,30 +144,33 @@ export default function MenuPage() {
                                         </div>
                                     )}
 
-                                    {/* ✅ Content - Flex grow to fill space */}
                                     <div className="p-3 flex flex-col flex-grow">
                                         <div className="flex-grow space-y-2">
                                             <h3 className="font-semibold text-sm text-[var(--fg)] leading-snug">
-                                            {item.name}
+                                                {item.name}
                                             </h3>
 
                                             {item.description && (
-                                                <p className="text-xs text-[var(--muted)] leading-relaxed">
-                                                {item.description}
+                                                <p className="text-xs text-[var(--muted)] leading-relaxed line-clamp-2">
+                                                    {item.description}
                                                 </p>
                                             )}
                                         </div>
 
-                                        {/* ✅ Price & Button - Always at bottom */}
                                         <div className="flex items-center justify-between pt-2 mt-auto">
                                             <span className="text-sm font-bold text-blue-600">
                                                 PKR {item.price}
                                             </span>
 
-                                            <button className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md active:scale-95">
-                                                + Add
+                                            {/* ✅ FIX: Working add button */}
+                                            <button
+                                                onClick={() => handleAddToCart(item)}
+                                                disabled={!hydrated}
+                                                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-1"
+                                            >
+                                                <Plus className="w-3 h-3" />
+                                                Add
                                             </button>
-
                                         </div>
                                     </div>
                                 </div>

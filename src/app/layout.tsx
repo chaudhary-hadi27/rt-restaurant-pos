@@ -7,11 +7,11 @@ import CommandPaletteWrapper from '@/components/CommandPaletteWrapper'
 import InstallPrompt from '@/components/InstallPrompt'
 import OfflineIndicator from '@/components/ui/OfflineIndicator'
 import OfflineInitializer from '@/components/OfflineInitializer'
+import SyncProgressIndicator from '@/components/ui/SyncProgressIndicator'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 const geist = Geist({ variable: "--font-geist", subsets: ["latin"] })
 
-// ✅ FIX: Remove manifest from metadata
 export const metadata: Metadata = {
     title: "RT Restaurant - Management System",
     description: "Professional restaurant management with offline support",
@@ -26,7 +26,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     return (
         <html lang="en" suppressHydrationWarning>
         <head>
-            {/* ✅ FIXED: Separate manifest loading */}
             <script dangerouslySetInnerHTML={{
                 __html: `
             (function() {
@@ -36,8 +35,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 link.rel = 'manifest';
                 link.href = manifest;
                 document.head.appendChild(link);
-                
-                // Store context for later use
                 window.__APP_CONTEXT__ = isAdmin ? 'admin' : 'public';
             })();
         `
@@ -51,7 +48,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <meta name="mobile-web-app-capable" content="yes" />
             <meta name="apple-mobile-web-app-capable" content="yes" />
 
-            {/* Service Worker Registration */}
             <script dangerouslySetInnerHTML={{
                 __html: `
                     if('serviceWorker' in navigator) {
@@ -70,6 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <OfflineInitializer />
             <ToastContainer />
             <OfflineIndicator />
+            <SyncProgressIndicator />
             <CommandPaletteWrapper />
             <InstallPrompt />
             <main className="lg:ml-16 min-h-screen">{children}</main>
