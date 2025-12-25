@@ -1,3 +1,4 @@
+// src/lib/hooks/useAdminAuth.ts - IMPROVED LOGIN SYSTEM
 "use client"
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
@@ -21,14 +22,12 @@ export function useAdminAuth() {
     }, [pathname])
 
     const checkAuth = () => {
-        const isLoginPage = pathname.includes('/login')
+        const isLoginPage = pathname === '/admin/login'
 
-        // ✅ FIXED: Proper session check
+        // ✅ Check session (expires after 8 hours)
         const sessionAuth = sessionStorage.getItem('admin_auth') === 'true'
         const sessionTime = parseInt(sessionStorage.getItem('admin_auth_time') || '0')
         const now = Date.now()
-
-        // ✅ Session expires after 8 hours
         const isSessionValid = sessionAuth && (now - sessionTime < 8 * 60 * 60 * 1000)
 
         // Load profile
@@ -40,8 +39,8 @@ export function useAdminAuth() {
         setIsAuthenticated(isSessionValid)
         setLoading(false)
 
-        // ✅ FIXED: Always redirect if not authenticated
-        if (!isSessionValid && !isLoginPage) {
+        // ✅ ALWAYS REDIRECT TO LOGIN IF NOT AUTHENTICATED
+        if (!isSessionValid && !isLoginPage && pathname.startsWith('/admin')) {
             sessionStorage.removeItem('admin_auth')
             sessionStorage.removeItem('admin_auth_time')
             router.push('/admin/login')
@@ -73,7 +72,7 @@ export function useAdminAuth() {
                         setProfile(data.profile)
                     }
 
-                    // ✅ Store hashed password for offline use
+                    // ✅ Cache password hash for offline use
                     const hashed = await bcrypt.hash(password, 10)
                     localStorage.setItem('admin_pwd_hash', hashed)
                     localStorage.setItem('admin_offline_enabled', 'true')
@@ -85,7 +84,7 @@ export function useAdminAuth() {
                 const data = await res.json()
                 return { success: false, error: data.error || 'Invalid password' }
             } else {
-                // ✅ FIXED: Proper offline verification
+                // ✅ Offline verification
                 const offlineEnabled = localStorage.getItem('admin_offline_enabled') === 'true'
 
                 if (!offlineEnabled) {
@@ -103,7 +102,7 @@ export function useAdminAuth() {
                     }
                 }
 
-                // ✅ Verify password offline
+                // Verify password offline
                 const isValid = await bcrypt.compare(password, storedHash)
 
                 if (isValid) {
@@ -120,7 +119,7 @@ export function useAdminAuth() {
                 return { success: false, error: 'Invalid password' }
             }
         } catch (error) {
-            // ✅ Fallback to offline if network error
+            // Network error - try offline
             const offlineEnabled = localStorage.getItem('admin_offline_enabled') === 'true'
 
             if (!offlineEnabled) {
@@ -169,3 +168,5 @@ export function useAdminAuth() {
 
     return { isAuthenticated, loading, profile, login, logout, updateProfile }
 }
+
+

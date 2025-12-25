@@ -1,18 +1,26 @@
+// src/app/admin/layout.tsx - FIXED LAYOUT
 "use client"
 
 import { useEffect } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useAdminAuth } from '@/lib/hooks/useAdminAuth'
 import { Shield, Loader2 } from 'lucide-react'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname()
+    const router = useRouter()
     const { isAuthenticated, loading } = useAdminAuth()
 
-    // ✅ FIX: Don't protect login page
-    const isLoginPage = pathname.includes('/login')
+    const isLoginPage = pathname === '/admin/login'
 
-    // ✅ FIX: Show loading only for protected pages
+    // ✅ ALWAYS REDIRECT TO LOGIN IF NOT AUTHENTICATED
+    useEffect(() => {
+        if (!loading && !isAuthenticated && !isLoginPage) {
+            router.push('/admin/login')
+        }
+    }, [loading, isAuthenticated, isLoginPage, pathname])
+
+    // Show loading only for protected pages
     if (loading && !isLoginPage) {
         return (
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--bg)]">
@@ -24,9 +32,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         )
     }
 
-    // ✅ FIX: Allow login page without auth
+    // Allow login page without auth
     if (!isAuthenticated && !isLoginPage) {
-        return null // Hook will redirect
+        return null
     }
 
     return <div className="min-h-screen bg-[var(--bg)]">{children}</div>

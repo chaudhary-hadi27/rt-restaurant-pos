@@ -1,10 +1,12 @@
+// src/app/admin/(pages)/settings/page.tsx - WITH DANGER ZONE
 'use client'
 import { useState } from 'react'
-import { Key, Save, Eye, EyeOff, User, Camera } from 'lucide-react'
+import { Key, Save, Eye, EyeOff, User, Camera, Trash2, AlertTriangle, Database } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { PageHeader } from '@/components/ui/PageHeader'
 import ResponsiveInput from '@/components/ui/ResponsiveInput'
 import { useAdminAuth } from '@/lib/hooks/useAdminAuth'
+import { offlineManager } from '@/lib/db/offlineManager'
 
 export default function SettingsPage() {
     const { profile, updateProfile } = useAdminAuth()
@@ -17,6 +19,7 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(false)
     const [uploadingImage, setUploadingImage] = useState(false)
     const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false })
+    const [deleting, setDeleting] = useState(false)
     const toast = useToast()
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -158,6 +161,30 @@ export default function SettingsPage() {
         }
     }
 
+    // ✅ NEW: Delete Old Data
+    const handleDeleteOldData = async (type: 'orders' | 'all') => {
+        const confirmMessage = type === 'orders'
+            ? '⚠️ Delete order history (older than 30 days)?\n\nMenu will be preserved.'
+            : '🚨 DELETE ALL OFFLINE DATA?\n\nThis will remove:\n• All cached orders\n• All menu data\n• App will need re-sync\n\nThis CANNOT be undone!'
+
+        if (!confirm(confirmMessage)) return
+
+        setDeleting(true)
+        try {
+            if (type === 'orders') {
+                await offlineManager.clearAllData(false) // Keep menu
+                toast.add('success', '✅ Order history cleared!')
+            } else {
+                await offlineManager.clearAllData(true) // Delete everything
+                toast.add('success', '✅ All offline data deleted!')
+            }
+        } catch (error: any) {
+            toast.add('error', `❌ ${error.message || 'Failed to delete'}`)
+        } finally {
+            setDeleting(false)
+        }
+    }
+
     return (
         <div className="min-h-screen bg-[var(--bg)]">
             <PageHeader title="Admin Settings" subtitle="Manage your profile & security" />
@@ -267,7 +294,7 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                {/* ✅ FIXED: Password Section - No Icon Overlap */}
+                {/* Password Section */}
                 <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
                     <div className="flex items-center gap-3 mb-6">
                         <div className="w-12 h-12 bg-blue-600/10 rounded-lg flex items-center justify-center">
@@ -280,7 +307,6 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="space-y-4">
-                        {/* Current Password */}
                         <div>
                             <label className="block text-sm font-medium text-[var(--fg)] mb-2">
                                 Current Password <span className="text-red-600">*</span>
@@ -296,14 +322,13 @@ export default function SettingsPage() {
                                 <button
                                     type="button"
                                     onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[var(--muted)] hover:text-[var(--fg)]"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--fg)]"
                                 >
                                     {showPasswords.current ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                 </button>
                             </div>
                         </div>
 
-                        {/* New Password */}
                         <div>
                             <label className="block text-sm font-medium text-[var(--fg)] mb-2">
                                 New Password <span className="text-red-600">*</span>
@@ -319,7 +344,7 @@ export default function SettingsPage() {
                                 <button
                                     type="button"
                                     onClick={() => setShowPasswords({ ...showPasswords, new: !showPasswords.new })}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[var(--muted)] hover:text-[var(--fg)]"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--fg)]"
                                 >
                                     {showPasswords.new ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                 </button>
@@ -327,7 +352,6 @@ export default function SettingsPage() {
                             <p className="text-xs text-[var(--muted)] mt-1">Must be at least 8 characters</p>
                         </div>
 
-                        {/* Confirm Password */}
                         <div>
                             <label className="block text-sm font-medium text-[var(--fg)] mb-2">
                                 Confirm New Password <span className="text-red-600">*</span>
@@ -343,7 +367,7 @@ export default function SettingsPage() {
                                 <button
                                     type="button"
                                     onClick={() => setShowPasswords({ ...showPasswords, confirm: !showPasswords.confirm })}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[var(--muted)] hover:text-[var(--fg)]"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--fg)]"
                                 >
                                     {showPasswords.confirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                 </button>
@@ -367,6 +391,81 @@ export default function SettingsPage() {
                                 </>
                             )}
                         </button>
+                    </div>
+                </div>
+
+                {/* ✅ DANGER ZONE */}
+                <div className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-2 border-red-600 rounded-xl p-6">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center">
+                            <AlertTriangle className="w-6 h-6 text-red-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-red-900 dark:text-red-100">⚠️ Danger Zone</h2>
+                            <p className="text-sm text-red-800 dark:text-red-200">Irreversible actions - use with caution</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        {/* Delete Order History */}
+                        <div className="p-4 bg-white/50 dark:bg-black/20 rounded-lg border border-red-300 dark:border-red-800">
+                            <div className="flex items-start gap-3 mb-3">
+                                <Database className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                                <div className="flex-1">
+                                    <h3 className="font-bold text-red-900 dark:text-red-100 mb-1">Delete Order History</h3>
+                                    <p className="text-sm text-red-800 dark:text-red-200">
+                                        Removes all cached orders (older than 30 days). Menu will be preserved.
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => handleDeleteOldData('orders')}
+                                disabled={deleting}
+                                className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {deleting ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        Deleting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="w-4 h-4" />
+                                        Clear Order History
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Delete All Offline Data */}
+                        <div className="p-4 bg-white/50 dark:bg-black/20 rounded-lg border border-red-600">
+                            <div className="flex items-start gap-3 mb-3">
+                                <Trash2 className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                                <div className="flex-1">
+                                    <h3 className="font-bold text-red-900 dark:text-red-100 mb-1">Delete ALL Offline Data</h3>
+                                    <p className="text-sm text-red-800 dark:text-red-200">
+                                        🚨 Removes everything: menu, orders, cache. App will need re-sync. <strong>Cannot be undone!</strong>
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => handleDeleteOldData('all')}
+                                disabled={deleting}
+                                className="w-full px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2 border-2 border-red-900"
+                            >
+                                {deleting ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        Deleting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="w-4 h-4" />
+                                        DELETE EVERYTHING
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
