@@ -1,14 +1,30 @@
 {
-  "name": "RT Restaurant Management",
-  "short_name": "RT Restaurant",
-  "description": "Complete restaurant operations & order management",
+  "name": "RT Restaurant POS",
+  "short_name": "RT POS",
+  "description": "Restaurant point-of-sale system - Works offline",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0a0a0a",
+  "background_color": "#ffffff",
   "theme_color": "#3b82f6",
   "orientation": "portrait",
+  "categories": ["business", "food"],
   "icons": [
+    {
+      "src": "/icons/icon-16.png",
+      "sizes": "16x16",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-48.png",
+      "sizes": "48x48",
+      "type": "image/png"
+    },
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
@@ -20,6 +36,23 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Order",
+      "url": "/",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Orders",
+      "url": "/orders",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Tables",
+      "url": "/tables",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

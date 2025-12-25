@@ -1,4 +1,4 @@
-// src/lib/hooks/useSupabase.ts - SSR SAFE VERSION
+// src/lib/hooks/useSupabase.ts - FIXED
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -18,11 +18,10 @@ export function useSupabase<T = any>(
     const [data, setData] = useState<T[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
-    const [isOffline, setIsOffline] = useState(false) // ✅ FIX: Default false for SSR
-    const [isMounted, setIsMounted] = useState(false) // ✅ Track client mount
+    const [isOffline, setIsOffline] = useState(false)
+    const [isMounted, setIsMounted] = useState(false)
     const supabase = createClient()
 
-    // ✅ Map table names to IndexedDB stores
     const getStoreName = (tableName: string) => {
         const map: Record<string, string> = {
             'menu_items': STORES.MENU_ITEMS,
@@ -34,14 +33,12 @@ export function useSupabase<T = any>(
     }
 
     const load = async () => {
-        // ✅ Only run on client
         if (typeof window === 'undefined') return
 
         setLoading(true)
         setError(null)
 
         try {
-            // ✅ Safe navigator check
             const online = typeof navigator !== 'undefined' && navigator.onLine
 
             if (online) {
@@ -54,13 +51,18 @@ export function useSupabase<T = any>(
                 }
 
                 if (options?.order) {
-                    query = query.order(options.order.column, { ascending: options.order.ascending ?? true })
+                    query = query.order(options.order.column, {
+                        ascending: options.order.ascending ?? true
+                    })
                 }
 
                 const { data: result, error: err } = await query
 
                 if (err) throw err
-                setData(result as T[])
+
+                // ✅ FIX: Validate result is array
+                const validData = Array.isArray(result) ? result : []
+                setData(validData as T[])
                 setIsOffline(false)
             } else {
                 throw new Error('Offline')
@@ -68,15 +70,16 @@ export function useSupabase<T = any>(
         } catch (err: any) {
             console.log(`📴 Offline mode for ${table}`)
 
-            // ✅ Fallback to IndexedDB
             try {
                 const storeName = getStoreName(table)
-                const offlineData = await offlineManager.getOfflineData(storeName) as T[]
+                const offlineData = await offlineManager.getOfflineData(storeName)
+
+                // ✅ FIX: Validate offlineData is array
+                let filtered = Array.isArray(offlineData) ? offlineData : []
 
                 // Apply filters
-                let filtered = offlineData
                 if (options?.filter) {
-                    filtered = offlineData.filter(item =>
+                    filtered = filtered.filter(item =>
                         Object.entries(options.filter!).every(([key, value]) =>
                             (item as any)[key] === value
                         )
@@ -89,11 +92,14 @@ export function useSupabase<T = any>(
                         const aVal = (a as any)[options.order!.column]
                         const bVal = (b as any)[options.order!.column]
                         const direction = options.order!.ascending ?? true ? 1 : -1
-                        return aVal < bVal ? -direction : aVal > bVal ? direction : 0
+
+                        if (aVal < bVal) return -direction
+                        if (aVal > bVal) return direction
+                        return 0
                     })
                 }
 
-                setData(filtered)
+                setData(filtered as T[])
                 setIsOffline(true)
                 setError(null)
             } catch (offlineErr) {
@@ -107,7 +113,6 @@ export function useSupabase<T = any>(
     }
 
     useEffect(() => {
-        // ✅ Set mounted and initial offline state
         setIsMounted(true)
         if (typeof navigator !== 'undefined') {
             setIsOffline(!navigator.onLine)
@@ -115,7 +120,6 @@ export function useSupabase<T = any>(
 
         load()
 
-        // ✅ Network status listener (only on client)
         if (typeof window === 'undefined') return
 
         const handleOnline = () => {
@@ -127,12 +131,15 @@ export function useSupabase<T = any>(
         window.addEventListener('online', handleOnline)
         window.addEventListener('offline', handleOffline)
 
-        // ✅ Realtime only when online
         let channel: any
         if (options?.realtime && typeof navigator !== 'undefined' && navigator.onLine) {
             channel = supabase
                 .channel(`${table}_changes`)
-                .on('postgres_changes', { event: '*', schema: 'public', table }, load)
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table
+                }, load)
                 .subscribe()
         }
 
@@ -161,5 +168,15 @@ export function useSupabase<T = any>(
         return { error }
     }
 
-    return { data, loading, error, isOffline, isMounted, refresh: load, insert, update, remove }
+    return {
+        data,
+        loading,
+        error,
+        isOffline,
+        isMounted,
+        refresh: load,
+        insert,
+        update,
+        remove
+    }
 }
