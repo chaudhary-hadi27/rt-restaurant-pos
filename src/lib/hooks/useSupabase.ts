@@ -1,10 +1,19 @@
-// src/lib/hooks/useSupabase.ts - FIXED
+// src/lib/hooks/useSupabase.ts - FIXED ARRAY VALIDATION
 'use client'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { offlineManager } from '@/lib/db/offlineManager'
 import { STORES } from '@/lib/db/schema'
+
+// ✅ SAFE ARRAY VALIDATOR
+function ensureArray<T>(data: any): T[] {
+    if (Array.isArray(data)) return data
+    if (data === null || data === undefined) return []
+    if (typeof data === 'object' && 'data' in data && Array.isArray(data.data)) return data.data
+    console.warn('⚠️ Data is not an array:', typeof data)
+    return []
+}
 
 export function useSupabase<T = any>(
     table: string,
@@ -60,9 +69,9 @@ export function useSupabase<T = any>(
 
                 if (err) throw err
 
-                // ✅ FIX: Validate result is array
-                const validData = Array.isArray(result) ? result : []
-                setData(validData as T[])
+                // ✅ VALIDATE RESULT
+                const validData = ensureArray<T>(result)
+                setData(validData)
                 setIsOffline(false)
             } else {
                 throw new Error('Offline')
@@ -74,8 +83,8 @@ export function useSupabase<T = any>(
                 const storeName = getStoreName(table)
                 const offlineData = await offlineManager.getOfflineData(storeName)
 
-                // ✅ FIX: Validate offlineData is array
-                let filtered = Array.isArray(offlineData) ? offlineData : []
+                // ✅ VALIDATE OFFLINE DATA
+                let filtered = ensureArray<T>(offlineData)
 
                 // Apply filters
                 if (options?.filter) {
@@ -99,7 +108,7 @@ export function useSupabase<T = any>(
                     })
                 }
 
-                setData(filtered as T[])
+                setData(filtered)
                 setIsOffline(true)
                 setError(null)
             } catch (offlineErr) {

@@ -1,7 +1,7 @@
-// src/app/(public)/page.tsx - FIXED ADD BUTTON
+// src/app/(public)/page.tsx - FIXED CART AUTO-OPEN
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { ShoppingCart, Plus, WifiOff } from 'lucide-react'
 import AutoSidebar, { useSidebarItems } from '@/components/layout/AutoSidebar'
 import CartDrawer from '@/components/cart/CartDrawer'
@@ -30,10 +30,22 @@ export default function MenuPage() {
     const [cartOpen, setCartOpen] = useState(false)
     const [isMounted, setIsMounted] = useState(false)
 
+    // ✅ FIX: Track if cart should auto-close
+    const cartTimerRef = useRef<NodeJS.Timeout | null>(null)
+
     useEffect(() => {
         setIsMounted(true)
         if (typeof window !== 'undefined' && navigator.onLine) {
             offlineManager.downloadEssentialData()
+        }
+    }, [])
+
+    // ✅ FIX: Cleanup timer on unmount
+    useEffect(() => {
+        return () => {
+            if (cartTimerRef.current) {
+                clearTimeout(cartTimerRef.current)
+            }
         }
     }, [])
 
@@ -52,7 +64,7 @@ export default function MenuPage() {
         }))
     ], selectedCat, setSelectedCat)
 
-    // ✅ FIX: Add to cart handler
+    // ✅ FIX: Controlled cart opening
     const handleAddToCart = (item: any) => {
         if (!hydrated) return
 
@@ -63,9 +75,30 @@ export default function MenuPage() {
             image_url: item.image_url
         })
 
-        // Show cart temporarily
-        setCartOpen(true)
-        setTimeout(() => setCartOpen(false), 1500)
+        // ✅ Only show cart briefly WITHOUT auto-closing
+        if (!cartOpen) {
+            setCartOpen(true)
+
+            // Clear any existing timer
+            if (cartTimerRef.current) {
+                clearTimeout(cartTimerRef.current)
+            }
+
+            // Auto-close after 1.5 seconds
+            cartTimerRef.current = setTimeout(() => {
+                setCartOpen(false)
+            }, 1500)
+        }
+    }
+
+    // ✅ FIX: Manual cart toggle
+    const toggleCart = () => {
+        // Clear auto-close timer when manually opening
+        if (cartTimerRef.current) {
+            clearTimeout(cartTimerRef.current)
+            cartTimerRef.current = null
+        }
+        setCartOpen(prev => !prev)
     }
 
     return (
@@ -96,7 +129,7 @@ export default function MenuPage() {
 
                             {/* Cart Button */}
                             <button
-                                onClick={() => setCartOpen(true)}
+                                onClick={toggleCart}
                                 className="relative px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 font-medium text-sm sm:text-base shadow-lg active:scale-95 transition-all"
                             >
                                 <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -162,7 +195,6 @@ export default function MenuPage() {
                                                 PKR {item.price}
                                             </span>
 
-                                            {/* ✅ FIX: Working add button */}
                                             <button
                                                 onClick={() => handleAddToCart(item)}
                                                 disabled={!hydrated}
@@ -182,7 +214,13 @@ export default function MenuPage() {
 
             <CartDrawer
                 isOpen={cartOpen}
-                onClose={() => setCartOpen(false)}
+                onClose={() => {
+                    if (cartTimerRef.current) {
+                        clearTimeout(cartTimerRef.current)
+                        cartTimerRef.current = null
+                    }
+                    setCartOpen(false)
+                }}
                 tables={tables}
                 waiters={waiters}
             />
