@@ -1,7 +1,7 @@
-// src/app/admin/(pages)/settings/page.tsx - WITH DANGER ZONE
+// src/app/admin/(pages)/settings/page.tsx - NESTED TOGGLES VERSION
 'use client'
 import { useState } from 'react'
-import { Key, Save, Eye, EyeOff, User, Camera, Trash2, AlertTriangle, Database } from 'lucide-react'
+import { Key, Save, Eye, EyeOff, User, Camera, Trash2, AlertTriangle, Database, ChevronDown, ChevronUp } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { PageHeader } from '@/components/ui/PageHeader'
 import ResponsiveInput from '@/components/ui/ResponsiveInput'
@@ -16,11 +16,23 @@ export default function SettingsPage() {
         bio: profile?.bio || '',
         profile_pic: profile?.profile_pic || ''
     })
+
+    // ✅ NESTED TOGGLE STATES
+    const [openSections, setOpenSections] = useState({
+        profile: true,
+        password: false,
+        danger: false
+    })
+
     const [loading, setLoading] = useState(false)
     const [uploadingImage, setUploadingImage] = useState(false)
     const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false })
     const [deleting, setDeleting] = useState(false)
     const toast = useToast()
+
+    const toggleSection = (section: 'profile' | 'password' | 'danger') => {
+        setOpenSections(prev => ({ ...prev, [section]: !prev[section] }))
+    }
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -161,7 +173,6 @@ export default function SettingsPage() {
         }
     }
 
-    // ✅ NEW: Delete Old Data
     const handleDeleteOldData = async (type: 'orders' | 'all') => {
         const confirmMessage = type === 'orders'
             ? '⚠️ Delete order history (older than 30 days)?\n\nMenu will be preserved.'
@@ -172,10 +183,10 @@ export default function SettingsPage() {
         setDeleting(true)
         try {
             if (type === 'orders') {
-                await offlineManager.clearAllData(false) // Keep menu
+                await offlineManager.clearAllData(false)
                 toast.add('success', '✅ Order history cleared!')
             } else {
-                await offlineManager.clearAllData(true) // Delete everything
+                await offlineManager.clearAllData(true)
                 toast.add('success', '✅ All offline data deleted!')
             }
         } catch (error: any) {
@@ -189,285 +200,339 @@ export default function SettingsPage() {
         <div className="min-h-screen bg-[var(--bg)]">
             <PageHeader title="Admin Settings" subtitle="Manage your profile & security" />
 
-            <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-                {/* Profile Section */}
-                <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="w-12 h-12 bg-green-600/10 rounded-lg flex items-center justify-center">
-                            <User className="w-6 h-6 text-green-600" />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-bold text-[var(--fg)]">Profile</h2>
-                            <p className="text-sm text-[var(--muted)]">Update your personal information</p>
-                        </div>
-                    </div>
+            <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
 
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-[var(--fg)] mb-3">
-                            Profile Picture
-                        </label>
-                        <div className="flex items-center gap-6">
-                            <div className="relative group">
-                                {profileForm.profile_pic ? (
-                                    <img
-                                        src={profileForm.profile_pic}
-                                        alt="Profile"
-                                        className="w-24 h-24 rounded-full object-cover border-4 border-blue-600 shadow-lg"
-                                    />
-                                ) : (
-                                    <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
-                                        {profileForm.name.charAt(0).toUpperCase() || 'A'}
-                                    </div>
-                                )}
-                                {uploadingImage && (
-                                    <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
-                                        <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin" />
-                                    </div>
-                                )}
+                {/* ========================================= */}
+                {/* 1. PROFILE SECTION */}
+                {/* ========================================= */}
+                <div className="bg-[var(--card)] border-2 border-[var(--border)] rounded-xl overflow-hidden transition-all hover:border-green-600/30">
+                    {/* Header - Always Visible */}
+                    <button
+                        onClick={() => toggleSection('profile')}
+                        className="w-full flex items-center justify-between p-5 hover:bg-[var(--bg)] transition-colors"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-green-600/10 rounded-lg flex items-center justify-center">
+                                <User className="w-6 h-6 text-green-600" />
                             </div>
+                            <div className="text-left">
+                                <h2 className="text-xl font-bold text-[var(--fg)]">Profile Settings</h2>
+                                <p className="text-sm text-[var(--muted)]">Update your personal information</p>
+                            </div>
+                        </div>
+                        {openSections.profile ? (
+                            <ChevronUp className="w-5 h-5 text-[var(--muted)]" />
+                        ) : (
+                            <ChevronDown className="w-5 h-5 text-[var(--muted)]" />
+                        )}
+                    </button>
 
-                            <div className="flex-1">
-                                <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium text-sm active:scale-95">
-                                    <Camera className="w-4 h-4" />
-                                    <span>{profileForm.profile_pic ? 'Change Photo' : 'Upload Photo'}</span>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleImageUpload}
-                                        disabled={uploadingImage}
-                                        className="hidden"
-                                    />
+                    {/* Content - Collapsible */}
+                    {openSections.profile && (
+                        <div className="p-6 pt-0 border-t border-[var(--border)] space-y-6 animate-in slide-in-from-top-2">
+                            {/* Profile Picture */}
+                            <div>
+                                <label className="block text-sm font-medium text-[var(--fg)] mb-3">
+                                    Profile Picture
                                 </label>
-                                <p className="text-xs text-[var(--muted)] mt-2">
-                                    Square image, max 5MB. Auto-resized to 400x400px
-                                </p>
-                                {profileForm.profile_pic && (
+                                <div className="flex items-center gap-6">
+                                    <div className="relative group">
+                                        {profileForm.profile_pic ? (
+                                            <img
+                                                src={profileForm.profile_pic}
+                                                alt="Profile"
+                                                className="w-24 h-24 rounded-full object-cover border-4 border-green-600 shadow-lg"
+                                            />
+                                        ) : (
+                                            <div className="w-24 h-24 rounded-full bg-green-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                                                {profileForm.name.charAt(0).toUpperCase() || 'A'}
+                                            </div>
+                                        )}
+                                        {uploadingImage && (
+                                            <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                                                <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin" />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex-1">
+                                        <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all font-medium text-sm active:scale-95">
+                                            <Camera className="w-4 h-4" />
+                                            <span>{profileForm.profile_pic ? 'Change Photo' : 'Upload Photo'}</span>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleImageUpload}
+                                                disabled={uploadingImage}
+                                                className="hidden"
+                                            />
+                                        </label>
+                                        <p className="text-xs text-[var(--muted)] mt-2">
+                                            Square image, max 5MB. Auto-resized to 400x400px
+                                        </p>
+                                        {profileForm.profile_pic && (
+                                            <button
+                                                onClick={() => setProfileForm({ ...profileForm, profile_pic: '' })}
+                                                className="text-xs text-red-600 hover:text-red-700 mt-2"
+                                            >
+                                                Remove Photo
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Form Fields */}
+                            <div className="space-y-4">
+                                <ResponsiveInput
+                                    label="Name"
+                                    value={profileForm.name}
+                                    onChange={e => setProfileForm({ ...profileForm, name: e.target.value })}
+                                    placeholder="Your name"
+                                    required
+                                />
+
+                                <div>
+                                    <label className="block text-sm font-medium text-[var(--fg)] mb-2">
+                                        Bio <span className="text-xs text-[var(--muted)]">(Optional)</span>
+                                    </label>
+                                    <textarea
+                                        value={profileForm.bio}
+                                        onChange={e => setProfileForm({ ...profileForm, bio: e.target.value })}
+                                        placeholder="Tell us about yourself..."
+                                        rows={3}
+                                        maxLength={200}
+                                        className="w-full px-4 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-green-600 resize-none"
+                                    />
+                                    <p className="text-xs text-[var(--muted)] mt-1">
+                                        {profileForm.bio.length}/200 characters
+                                    </p>
+                                </div>
+
+                                <button
+                                    onClick={handleProfileUpdate}
+                                    disabled={loading || uploadingImage}
+                                    className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-95"
+                                >
+                                    {loading ? (
+                                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                        <Save className="w-5 h-5" />
+                                    )}
+                                    {loading ? 'Updating...' : 'Update Profile'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* ========================================= */}
+                {/* 2. PASSWORD SECTION */}
+                {/* ========================================= */}
+                <div className="bg-[var(--card)] border-2 border-[var(--border)] rounded-xl overflow-hidden transition-all hover:border-blue-600/30">
+                    {/* Header - Always Visible */}
+                    <button
+                        onClick={() => toggleSection('password')}
+                        className="w-full flex items-center justify-between p-5 hover:bg-[var(--bg)] transition-colors"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-blue-600/10 rounded-lg flex items-center justify-center">
+                                <Key className="w-6 h-6 text-blue-600" />
+                            </div>
+                            <div className="text-left">
+                                <h2 className="text-xl font-bold text-[var(--fg)]">Password Settings</h2>
+                                <p className="text-sm text-[var(--muted)]">Change your admin password</p>
+                            </div>
+                        </div>
+                        {openSections.password ? (
+                            <ChevronUp className="w-5 h-5 text-[var(--muted)]" />
+                        ) : (
+                            <ChevronDown className="w-5 h-5 text-[var(--muted)]" />
+                        )}
+                    </button>
+
+                    {/* Content - Collapsible */}
+                    {openSections.password && (
+                        <div className="p-6 pt-0 border-t border-[var(--border)] space-y-4 animate-in slide-in-from-top-2">
+                            <div>
+                                <label className="block text-sm font-medium text-[var(--fg)] mb-2">
+                                    Current Password <span className="text-red-600">*</span>
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type={showPasswords.current ? 'text' : 'password'}
+                                        value={form.current}
+                                        onChange={e => setForm({ ...form, current: e.target.value })}
+                                        placeholder="Enter current password"
+                                        className="w-full pl-4 pr-12 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    />
                                     <button
-                                        onClick={() => setProfileForm({ ...profileForm, profile_pic: '' })}
-                                        className="text-xs text-red-600 hover:text-red-700 mt-2"
+                                        type="button"
+                                        onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--fg)]"
                                     >
-                                        Remove Photo
+                                        {showPasswords.current ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                     </button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        <ResponsiveInput
-                            label="Name"
-                            value={profileForm.name}
-                            onChange={e => setProfileForm({ ...profileForm, name: e.target.value })}
-                            placeholder="Your name"
-                            required
-                        />
-
-                        <div>
-                            <label className="block text-sm font-medium text-[var(--fg)] mb-2">
-                                Bio <span className="text-xs text-[var(--muted)]">(Optional)</span>
-                            </label>
-                            <textarea
-                                value={profileForm.bio}
-                                onChange={e => setProfileForm({ ...profileForm, bio: e.target.value })}
-                                placeholder="Tell us about yourself..."
-                                rows={3}
-                                maxLength={200}
-                                className="w-full px-4 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-blue-600 resize-none"
-                            />
-                            <p className="text-xs text-[var(--muted)] mt-1">
-                                {profileForm.bio.length}/200 characters
-                            </p>
-                        </div>
-
-                        <button
-                            onClick={handleProfileUpdate}
-                            disabled={loading || uploadingImage}
-                            className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                            {loading ? (
-                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                                <Save className="w-5 h-5" />
-                            )}
-                            {loading ? 'Updating...' : 'Update Profile'}
-                        </button>
-                    </div>
-                </div>
-
-                {/* Password Section */}
-                <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="w-12 h-12 bg-blue-600/10 rounded-lg flex items-center justify-center">
-                            <Key className="w-6 h-6 text-blue-600" />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-bold text-[var(--fg)]">Reset Password</h2>
-                            <p className="text-sm text-[var(--muted)]">Change your admin password</p>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-[var(--fg)] mb-2">
-                                Current Password <span className="text-red-600">*</span>
-                            </label>
-                            <div className="relative">
-                                <input
-                                    type={showPasswords.current ? 'text' : 'password'}
-                                    value={form.current}
-                                    onChange={e => setForm({ ...form, current: e.target.value })}
-                                    placeholder="Enter current password"
-                                    className="w-full pl-4 pr-12 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--fg)]"
-                                >
-                                    {showPasswords.current ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-[var(--fg)] mb-2">
-                                New Password <span className="text-red-600">*</span>
-                            </label>
-                            <div className="relative">
-                                <input
-                                    type={showPasswords.new ? 'text' : 'password'}
-                                    value={form.new}
-                                    onChange={e => setForm({ ...form, new: e.target.value })}
-                                    placeholder="Enter new password (min 8 chars)"
-                                    className="w-full pl-4 pr-12 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPasswords({ ...showPasswords, new: !showPasswords.new })}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--fg)]"
-                                >
-                                    {showPasswords.new ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                </button>
-                            </div>
-                            <p className="text-xs text-[var(--muted)] mt-1">Must be at least 8 characters</p>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-[var(--fg)] mb-2">
-                                Confirm New Password <span className="text-red-600">*</span>
-                            </label>
-                            <div className="relative">
-                                <input
-                                    type={showPasswords.confirm ? 'text' : 'password'}
-                                    value={form.confirm}
-                                    onChange={e => setForm({ ...form, confirm: e.target.value })}
-                                    placeholder="Re-enter new password"
-                                    className="w-full pl-4 pr-12 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPasswords({ ...showPasswords, confirm: !showPasswords.confirm })}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--fg)]"
-                                >
-                                    {showPasswords.confirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                </button>
-                            </div>
-                        </div>
-
-                        <button
-                            onClick={handleReset}
-                            disabled={loading}
-                            className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                            {loading ? (
-                                <>
-                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                    Updating...
-                                </>
-                            ) : (
-                                <>
-                                    <Save className="w-5 h-5" />
-                                    Update Password
-                                </>
-                            )}
-                        </button>
-                    </div>
-                </div>
-
-                {/* ✅ DANGER ZONE */}
-                <div className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-2 border-red-600 rounded-xl p-6">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center">
-                            <AlertTriangle className="w-6 h-6 text-red-600" />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-bold text-red-900 dark:text-red-100">⚠️ Danger Zone</h2>
-                            <p className="text-sm text-red-800 dark:text-red-200">Irreversible actions - use with caution</p>
-                        </div>
-                    </div>
-
-                    <div className="space-y-3">
-                        {/* Delete Order History */}
-                        <div className="p-4 bg-white/50 dark:bg-black/20 rounded-lg border border-red-300 dark:border-red-800">
-                            <div className="flex items-start gap-3 mb-3">
-                                <Database className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                                <div className="flex-1">
-                                    <h3 className="font-bold text-red-900 dark:text-red-100 mb-1">Delete Order History</h3>
-                                    <p className="text-sm text-red-800 dark:text-red-200">
-                                        Removes all cached orders (older than 30 days). Menu will be preserved.
-                                    </p>
                                 </div>
                             </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-[var(--fg)] mb-2">
+                                    New Password <span className="text-red-600">*</span>
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type={showPasswords.new ? 'text' : 'password'}
+                                        value={form.new}
+                                        onChange={e => setForm({ ...form, new: e.target.value })}
+                                        placeholder="Enter new password (min 8 chars)"
+                                        className="w-full pl-4 pr-12 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPasswords({ ...showPasswords, new: !showPasswords.new })}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--fg)]"
+                                    >
+                                        {showPasswords.new ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                    </button>
+                                </div>
+                                <p className="text-xs text-[var(--muted)] mt-1">Must be at least 8 characters</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-[var(--fg)] mb-2">
+                                    Confirm New Password <span className="text-red-600">*</span>
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type={showPasswords.confirm ? 'text' : 'password'}
+                                        value={form.confirm}
+                                        onChange={e => setForm({ ...form, confirm: e.target.value })}
+                                        placeholder="Re-enter new password"
+                                        className="w-full pl-4 pr-12 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPasswords({ ...showPasswords, confirm: !showPasswords.confirm })}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--fg)]"
+                                    >
+                                        {showPasswords.confirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                    </button>
+                                </div>
+                            </div>
+
                             <button
-                                onClick={() => handleDeleteOldData('orders')}
-                                disabled={deleting}
-                                className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                                onClick={handleReset}
+                                disabled={loading}
+                                className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-95"
                             >
-                                {deleting ? (
+                                {loading ? (
                                     <>
-                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                        Deleting...
+                                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        Updating...
                                     </>
                                 ) : (
                                     <>
-                                        <Trash2 className="w-4 h-4" />
-                                        Clear Order History
+                                        <Save className="w-5 h-5" />
+                                        Update Password
                                     </>
                                 )}
                             </button>
                         </div>
-
-                        {/* Delete All Offline Data */}
-                        <div className="p-4 bg-white/50 dark:bg-black/20 rounded-lg border border-red-600">
-                            <div className="flex items-start gap-3 mb-3">
-                                <Trash2 className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                                <div className="flex-1">
-                                    <h3 className="font-bold text-red-900 dark:text-red-100 mb-1">Delete ALL Offline Data</h3>
-                                    <p className="text-sm text-red-800 dark:text-red-200">
-                                        🚨 Removes everything: menu, orders, cache. App will need re-sync. <strong>Cannot be undone!</strong>
-                                    </p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => handleDeleteOldData('all')}
-                                disabled={deleting}
-                                className="w-full px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2 border-2 border-red-900"
-                            >
-                                {deleting ? (
-                                    <>
-                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                        Deleting...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Trash2 className="w-4 h-4" />
-                                        DELETE EVERYTHING
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </div>
+                    )}
                 </div>
+
+                {/* ========================================= */}
+                {/* 3. DANGER ZONE SECTION */}
+                {/* ========================================= */}
+                <div className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-2 border-red-600 rounded-xl overflow-hidden transition-all hover:border-red-700">
+                    {/* Header - Always Visible */}
+                    <button
+                        onClick={() => toggleSection('danger')}
+                        className="w-full flex items-center justify-between p-5 hover:bg-white/30 dark:hover:bg-black/20 transition-colors"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center">
+                                <AlertTriangle className="w-6 h-6 text-red-600" />
+                            </div>
+                            <div className="text-left">
+                                <h2 className="text-xl font-bold text-red-900 dark:text-red-100">⚠️ Danger Zone</h2>
+                                <p className="text-sm text-red-800 dark:text-red-200">Irreversible actions - use with caution</p>
+                            </div>
+                        </div>
+                        {openSections.danger ? (
+                            <ChevronUp className="w-5 h-5 text-red-600" />
+                        ) : (
+                            <ChevronDown className="w-5 h-5 text-red-600" />
+                        )}
+                    </button>
+
+                    {/* Content - Collapsible */}
+                    {openSections.danger && (
+                        <div className="p-6 pt-0 border-t-2 border-red-600/30 space-y-3 animate-in slide-in-from-top-2">
+                            {/* Delete Order History */}
+                            <div className="p-4 bg-white/50 dark:bg-black/20 rounded-lg border border-red-300 dark:border-red-800">
+                                <div className="flex items-start gap-3 mb-3">
+                                    <Database className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                                    <div className="flex-1">
+                                        <h3 className="font-bold text-red-900 dark:text-red-100 mb-1">Delete Order History</h3>
+                                        <p className="text-sm text-red-800 dark:text-red-200">
+                                            Removes all cached orders (older than 30 days). Menu will be preserved.
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleDeleteOldData('orders')}
+                                    disabled={deleting}
+                                    className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95"
+                                >
+                                    {deleting ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            Deleting...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Trash2 className="w-4 h-4" />
+                                            Clear Order History
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
+                            {/* Delete All Offline Data */}
+                            <div className="p-4 bg-white/50 dark:bg-black/20 rounded-lg border border-red-600">
+                                <div className="flex items-start gap-3 mb-3">
+                                    <Trash2 className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                                    <div className="flex-1">
+                                        <h3 className="font-bold text-red-900 dark:text-red-100 mb-1">Delete ALL Offline Data</h3>
+                                        <p className="text-sm text-red-800 dark:text-red-200">
+                                            🚨 Removes everything: menu, orders, cache. App will need re-sync. <strong>Cannot be undone!</strong>
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleDeleteOldData('all')}
+                                    disabled={deleting}
+                                    className="w-full px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2 border-2 border-red-900 transition-all active:scale-95"
+                                >
+                                    {deleting ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            Deleting...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Trash2 className="w-4 h-4" />
+                                            DELETE EVERYTHING
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
             </div>
         </div>
     )

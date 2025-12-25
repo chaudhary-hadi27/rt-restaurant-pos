@@ -1,4 +1,4 @@
-// src/lib/hooks/useStorageMonitor.ts - NEW FILE
+// src/lib/hooks/useStorageMonitor.ts - ENHANCED VERSION
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -26,13 +26,13 @@ export function useStorageMonitor() {
 
         setChecking(true)
         try {
-            // Check Supabase Storage
+            // Check Supabase Storage (via navigator.storage API)
             const supabaseEstimate = await navigator.storage?.estimate() || { usage: 0, quota: 0 }
             const supabaseUsed = Math.round((supabaseEstimate.usage || 0) / (1024 * 1024 * 1024)) // GB
             const supabaseLimit = Math.round((supabaseEstimate.quota || 0) / (1024 * 1024 * 1024)) // GB
             const supabasePercentage = supabaseLimit > 0 ? (supabaseUsed / supabaseLimit) * 100 : 0
 
-            // Cloudinary check (estimate based on image count)
+            // Check Cloudinary Storage (via API)
             const cloudinaryResponse = await fetch('/api/storage/cloudinary-status')
             const cloudinaryData = await cloudinaryResponse.json()
             const cloudinaryUsed = cloudinaryData.usedGB || 0
@@ -56,17 +56,25 @@ export function useStorageMonitor() {
 
             setStatus(newStatus)
 
-            // Show warnings
-            if (supabasePercentage > 90) {
-                toast.add('error', `🚨 Supabase storage ${supabasePercentage.toFixed(0)}% full! Clean old data now.`)
-            } else if (supabasePercentage > 80) {
-                toast.add('warning', `⚠️ Supabase storage ${supabasePercentage.toFixed(0)}% full. Consider cleanup.`)
-            }
+            // Show warnings only once per session
+            const warned = sessionStorage.getItem('storage_warned')
 
-            if (cloudinaryPercentage > 90) {
-                toast.add('error', `🚨 Cloudinary storage ${cloudinaryPercentage.toFixed(0)}% full! Delete old images.`)
-            } else if (cloudinaryPercentage > 80) {
-                toast.add('warning', `⚠️ Cloudinary storage ${cloudinaryPercentage.toFixed(0)}% full.`)
+            if (!warned) {
+                if (supabasePercentage > 90) {
+                    toast.add('error', `🚨 Supabase storage ${supabasePercentage.toFixed(0)}% full! Clean old data now.`)
+                    sessionStorage.setItem('storage_warned', 'true')
+                } else if (supabasePercentage > 80) {
+                    toast.add('warning', `⚠️ Supabase storage ${supabasePercentage.toFixed(0)}% full. Consider cleanup.`)
+                    sessionStorage.setItem('storage_warned', 'true')
+                }
+
+                if (cloudinaryPercentage > 90) {
+                    toast.add('error', `🚨 Cloudinary storage ${cloudinaryPercentage.toFixed(0)}% full! Delete old images.`)
+                    sessionStorage.setItem('storage_warned', 'true')
+                } else if (cloudinaryPercentage > 80) {
+                    toast.add('warning', `⚠️ Cloudinary storage ${cloudinaryPercentage.toFixed(0)}% full.`)
+                    sessionStorage.setItem('storage_warned', 'true')
+                }
             }
 
         } catch (error) {
