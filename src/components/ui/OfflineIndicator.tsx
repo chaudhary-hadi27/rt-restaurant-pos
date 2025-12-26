@@ -1,11 +1,11 @@
-// src/components/ui/OfflineIndicator.tsx
+// src/components/ui/OfflineIndicator.tsx - UPDATED WITH useOfflineStatus
 'use client'
-import { Wifi, WifiOff, CheckCircle, X } from 'lucide-react'
-import { useOfflineSync } from '@/lib/hooks/useOfflineSync'
+import { Wifi, WifiOff, CheckCircle, X, RefreshCw } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { useOfflineStatus } from '@/lib/hooks/useOfflineStatus'
 
 export default function OfflineIndicator() {
-    const { isOnline, syncing, pendingCount } = useOfflineSync()
+    const { isOnline, syncing, pendingCount, manualSync } = useOfflineStatus()
     const [showSuccess, setShowSuccess] = useState(false)
     const [dismissed, setDismissed] = useState(false)
 
@@ -24,7 +24,7 @@ export default function OfflineIndicator() {
     if (dismissed) return null
 
     return (
-        <div className={`fixed top-4 right-4 z-50 animate-in slide-in-from-top-2`}>
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2">
             <div className={`flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-lg border backdrop-blur-sm ${
                 isOnline
                     ? showSuccess
@@ -35,7 +35,11 @@ export default function OfflineIndicator() {
                 {showSuccess ? (
                     <CheckCircle className="w-4 h-4" />
                 ) : isOnline ? (
-                    <Wifi className="w-4 h-4" />
+                    syncing ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                        <Wifi className="w-4 h-4" />
+                    )
                 ) : (
                     <WifiOff className="w-4 h-4" />
                 )}
@@ -46,6 +50,16 @@ export default function OfflineIndicator() {
                             isOnline ? `${pendingCount} pending` :
                                 'Offline mode'}
                 </span>
+
+                {/* Manual Sync Button */}
+                {isOnline && pendingCount > 0 && !syncing && (
+                    <button
+                        onClick={() => manualSync()}
+                        className="ml-2 px-2 py-1 bg-white/20 hover:bg-white/30 rounded text-xs font-medium transition-colors"
+                    >
+                        Sync Now
+                    </button>
+                )}
 
                 <button
                     onClick={() => setDismissed(true)}

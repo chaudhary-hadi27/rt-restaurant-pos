@@ -1,8 +1,8 @@
-// src/app/(public)/orders/page.tsx - COMPLETE FIXED VERSION
+// src/app/(public)/orders/page.tsx - UPDATED WITH OFFLINE SUPPORT
 "use client"
 
-import { useState, useMemo } from 'react'
-import { Printer, Users, RefreshCw, CreditCard, Banknote } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { Printer, Users, RefreshCw, CreditCard, Banknote, WifiOff } from 'lucide-react'
 import { UniversalDataTable } from '@/components/ui/UniversalDataTable'
 import ResponsiveStatsGrid from '@/components/ui/ResponsiveStatsGrid'
 import AutoSidebar, { useSidebarItems } from '@/components/layout/AutoSidebar'
@@ -11,9 +11,12 @@ import ReceiptModal from '@/components/features/receipt/ReceiptGenerator'
 import SplitBillModal from '@/components/features/split-bill/SplitBillModal'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { useOrders, useOrderManagement, useOrdersSync } from '@/lib/hooks'
+import { useOrderManagement } from '@/lib/hooks'
 import { getOrderStatusColor } from '@/lib/utils/statusHelpers'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db/indexedDB'
+import { STORES } from '@/lib/db/schema'
+import { useOfflineStatus } from '@/lib/hooks/useOfflineStatus'
 
 export default function OrdersPage() {
     const [filter, setFilter] = useState('active')
@@ -21,11 +24,55 @@ export default function OrdersPage() {
     const [showReceipt, setShowReceipt] = useState<any>(null)
     const [showSplitBill, setShowSplitBill] = useState<any>(null)
     const [showPaymentModal, setShowPaymentModal] = useState<any>(null)
+    const [orders, setOrders] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
 
-    const { data: orders, loading, refresh } = useOrders()
     const { printAndComplete, cancelOrder, loading: actionLoading } = useOrderManagement()
+    const { isOnline, pendingCount } = useOfflineStatus()
+    const supabase = createClient()
 
-    useOrdersSync(refresh)
+    useEffect(() => {
+        loadOrders()
+        const interval = setInterval(loadOrders, 5000)
+        return () => clearInterval(interval)
+    }, [isOnline])
+
+    const loadOrders = async () => {
+        setLoading(true)
+        try {
+            let allOrders: any[] = []
+
+            // ✅ Load online orders
+            if (isOnline) {
+                const { data: onlineOrders } = await supabase
+                    .from('orders')
+                    .select('*, restaurant_tables(table_number), waiters(name), order_items(*, menu_items(name, price))')
+                    .order('created_at', { ascending: false })
+                    .limit(100)
+
+                allOrders = onlineOrders || []
+            }
+
+            // ✅ Load offline orders
+            const offlineOrders = await db.getAll(STORES.ORDERS) as any[]
+            const pendingOffline = offlineOrders.filter(o => !o.synced && o.id.startsWith('offline_'))
+
+            // Load items for offline orders
+            for (const order of pendingOffline) {
+                const items = await db.getAll(STORES.ORDER_ITEMS) as any[]
+                order.order_items = items.filter((i: any) => i.order_id === order.id)
+            }
+
+            // ✅ Merge orders (offline first)
+            allOrders = [...pendingOffline, ...allOrders]
+
+            setOrders(allOrders)
+        } catch (error) {
+            console.error('Failed to load orders:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
 
     const getTodayRange = () => {
         const today = new Date()
@@ -61,22 +108,18 @@ export default function OrdersPage() {
         ]
     }, [orders, filter])
 
-    // ✅ FIXED: Print & Complete Handler
     const handlePrintAndComplete = async (paymentMethod: 'cash' | 'online') => {
         if (!showPaymentModal) return
 
-        const supabase = createClient()
+        if (isOnline) {
+            await supabase
+                .from('orders')
+                .update({ payment_method: paymentMethod })
+                .eq('id', showPaymentModal.id)
+        }
 
-        // Update payment method first
-        await supabase
-            .from('orders')
-            .update({ payment_method: paymentMethod })
-            .eq('id', showPaymentModal.id)
-
-        // Show receipt for printing
         setShowReceipt(showPaymentModal)
 
-        // Complete order (auto-marks as printed)
         await printAndComplete(
             showPaymentModal.id,
             showPaymentModal.table_id,
@@ -85,7 +128,7 @@ export default function OrdersPage() {
 
         setShowPaymentModal(null)
         setSelectedOrder(null)
-        refresh()
+        loadOrders()
     }
 
     const handleCancel = async (order: any) => {
@@ -93,15 +136,20 @@ export default function OrdersPage() {
         const result = await cancelOrder(order.id, order.table_id, order.order_type)
         if (result.success) {
             setSelectedOrder(null)
-            refresh()
+            loadOrders()
         }
     }
 
     const columns = [
         { key: 'order', label: 'Order', render: (row: any) => (
-                <div>
-                    <p className="font-medium text-[var(--fg)] text-sm">#{row.id.slice(0, 8).toUpperCase()}</p>
-                    <p className="text-xs text-[var(--muted)]">{new Date(row.created_at).toLocaleString()}</p>
+                <div className="flex items-center gap-2">
+                    {row.id.startsWith('offline_') && (
+                        <WifiOff className="w-4 h-4 text-yellow-600 flex-shrink-0"title="Offline order" />
+                    )}
+                    <div>
+                        <p className="font-medium text-[var(--fg)] text-sm">#{row.id.slice(0, 8).toUpperCase()}</p>
+                        <p className="text-xs text-[var(--muted)]">{new Date(row.created_at).toLocaleString()}</p>
+                    </div>
                 </div>
             )},
         { key: 'type', label: 'Type', mobileHidden: true, render: (row: any) => (
@@ -148,15 +196,23 @@ export default function OrdersPage() {
                 <div className="lg:ml-64">
                     <PageHeader
                         title="Orders"
-                        subtitle={`${stats[0].value} active • ${stats[1].value} printed`}
+                        subtitle={`${stats[0].value} active${pendingCount > 0 ? ` • ${pendingCount} pending sync` : ''}`}
                         action={
-                            <button onClick={refresh} className="p-2 hover:bg-[var(--bg)] rounded-lg active:scale-95 transition-transform">
+                            <button onClick={loadOrders} className="p-2 hover:bg-[var(--bg)] rounded-lg active:scale-95 transition-transform">
                                 <RefreshCw className="w-5 h-5 text-[var(--muted)]" />
                             </button>
                         }
                     />
 
                     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+                        {pendingCount > 0 && (
+                            <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                                <p className="text-sm font-medium text-yellow-600">
+                                    📴 {pendingCount} orders pending sync. Will upload when online.
+                                </p>
+                            </div>
+                        )}
+
                         <ResponsiveStatsGrid stats={stats} />
                         <UniversalDataTable
                             columns={columns}
@@ -168,7 +224,6 @@ export default function OrdersPage() {
                     </div>
                 </div>
 
-                {/* Order Details Modal */}
                 {selectedOrder && (
                     <UniversalModal
                         open={!!selectedOrder}
@@ -193,13 +248,11 @@ export default function OrdersPage() {
                                             Cancel
                                         </button>
 
-                                        {/* ✅ FIXED: Single Print & Complete Button */}
                                         <button
                                             onClick={() => {
                                                 if (selectedOrder.order_type === 'dine-in' && !selectedOrder.payment_method) {
                                                     setShowPaymentModal(selectedOrder)
                                                 } else {
-                                                    // Direct complete for delivery orders
                                                     setShowReceipt(selectedOrder)
                                                     printAndComplete(
                                                         selectedOrder.id,
@@ -207,11 +260,11 @@ export default function OrdersPage() {
                                                         selectedOrder.order_type
                                                     ).then(() => {
                                                         setSelectedOrder(null)
-                                                        refresh()
+                                                        loadOrders()
                                                     })
                                                 }
                                             }}
-                                            disabled={actionLoading}
+                                            disabled={actionLoading || !isOnline}
                                             className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm font-medium transition-colors disabled:opacity-50 active:scale-95"
                                         >
                                             <Printer className="w-4 h-4" />
@@ -237,7 +290,6 @@ export default function OrdersPage() {
                     </UniversalModal>
                 )}
 
-                {/* Payment Modal (Only for Dine-In) */}
                 {showPaymentModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowPaymentModal(null)}>
                         <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>

@@ -180,7 +180,6 @@ export default function ReceiptModal({ order, onClose, autoPrint = true }: Recei
                         <p className="text-xs sm:text-sm text-gray-600">Delicious Food, Memorable Moments</p>
                         <div className="border-t-2 border-dashed my-2 sm:my-3 border-gray-300"></div>
                         <p className="text-xs sm:text-sm text-gray-600">Sooter Mills Rd, Lahore</p>
-                        <p className="text-xs sm:text-sm text-gray-600">Tel: +92 321 9343489</p>
                     </div>
 
                     <div className="border-t-2 border-dashed my-3 sm:my-4 border-gray-300"></div>
@@ -241,7 +240,7 @@ export default function ReceiptModal({ order, onClose, autoPrint = true }: Recei
                             <span className="text-gray-900">PKR {order.subtotal.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-gray-600">Tax (5%)</span>
+                            <span className="text-gray-600">Tax (0%)</span>
                             <span className="text-gray-900">PKR {order.tax.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-base sm:text-lg font-bold pt-2 border-t border-gray-300">
@@ -256,7 +255,6 @@ export default function ReceiptModal({ order, onClose, autoPrint = true }: Recei
                     <div className="text-center text-xs sm:text-sm text-gray-600">
                         <p className="mb-1 font-bold">Thank you for dining with us!</p>
                         <p className="mb-2">Please visit again</p>
-                        <p className="text-xs">Follow us: @rtrestaurant</p>
                     </div>
                 </div>
 

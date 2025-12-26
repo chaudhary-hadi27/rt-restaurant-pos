@@ -1,0 +1,260 @@
+// src/lib/db/realtimeSync.ts - REAL-TIME SYNC ENGINE
+import { createClient } from '@/lib/supabase/client'
+import { db } from './indexedDB'
+import { STORES } from './schema'
+
+export class RealtimeSync {
+    private syncInterval: NodeJS.Timeout | null = null
+    private isSyncing = false
+    private pendingOperations: Set<string> = new Set()
+
+    constructor() {
+        if (typeof window !== 'undefined') {
+            this.startAutoSync()
+            this.setupOnlineListener()
+        }
+    }
+
+    // ✅ Start automatic background sync
+    private startAutoSync() {
+        // Sync every 30 seconds when online
+        this.syncInterval = setInterval(() => {
+            if (navigator.onLine && !this.isSyncing) {
+                this.syncAll()
+            }
+        }, 30000)
+    }
+
+    // ✅ Listen for online event
+    private setupOnlineListener() {
+        window.addEventListener('online', () => {
+            console.log('🌐 Back online! Starting sync...')
+            this.syncAll()
+        })
+    }
+
+    // ✅ Sync all pending data
+    async syncAll(): Promise<{ success: boolean; synced: number }> {
+        if (this.isSyncing) {
+            return { success: false, synced: 0 }
+        }
+
+        if (!navigator.onLine) {
+            console.log('📴 Offline - skipping sync')
+            return { success: false, synced: 0 }
+        }
+
+        this.isSyncing = true
+        let totalSynced = 0
+
+        try {
+            this.dispatchEvent('sync-start', { message: 'Starting sync...' })
+
+            // Sync orders
+            const ordersResult = await this.syncOrders()
+            totalSynced += ordersResult.synced
+
+            // Sync attendance
+            const attendanceResult = await this.syncAttendance()
+            totalSynced += attendanceResult.synced
+
+            this.dispatchEvent('sync-complete', { synced: totalSynced })
+
+            console.log(`✅ Sync complete: ${totalSynced} items`)
+            return { success: true, synced: totalSynced }
+        } catch (error) {
+            console.error('❌ Sync failed:', error)
+            this.dispatchEvent('sync-error', { error: 'Sync failed' })
+            return { success: false, synced: totalSynced }
+        } finally {
+            this.isSyncing = false
+        }
+    }
+
+    // ✅ Sync orders to Supabase
+    private async syncOrders(): Promise<{ success: boolean; synced: number }> {
+        const supabase = createClient()
+        let synced = 0
+
+        try {
+            const allOrders = await db.getAll(STORES.ORDERS) as any[]
+            const pendingOrders = allOrders.filter(o => !o.synced && o.id.startsWith('offline_'))
+
+            if (pendingOrders.length === 0) {
+                return { success: true, synced: 0 }
+            }
+
+            console.log(`📤 Syncing ${pendingOrders.length} orders...`)
+
+            for (const order of pendingOrders) {
+                if (this.pendingOperations.has(order.id)) continue
+                this.pendingOperations.add(order.id)
+
+                try {
+                    // Create order in Supabase
+                    const { data: newOrder, error: orderError } = await supabase
+                        .from('orders')
+                        .insert({
+                            waiter_id: order.waiter_id,
+                            table_id: order.table_id,
+                            status: order.status,
+                            subtotal: order.subtotal,
+                            tax: order.tax,
+                            total_amount: order.total_amount,
+                            order_type: order.order_type,
+                            payment_method: order.payment_method,
+                            notes: order.notes,
+                            customer_name: order.customer_name,
+                            customer_phone: order.customer_phone,
+                            delivery_address: order.delivery_address,
+                            delivery_charges: order.delivery_charges,
+                            receipt_printed: order.receipt_printed || false,
+                            created_at: order.created_at
+                        })
+                        .select()
+                        .single()
+
+                    if (orderError) throw orderError
+
+                    // Sync order items
+                    const orderItems = await db.getAll(STORES.ORDER_ITEMS) as any[]
+                    const items = orderItems.filter(i => i.order_id === order.id)
+
+                    if (items.length > 0) {
+                        const itemsToInsert = items.map(item => ({
+                            order_id: newOrder.id,
+                            menu_item_id: item.menu_item_id,
+                            quantity: item.quantity,
+                            unit_price: item.unit_price,
+                            total_price: item.total_price
+                        }))
+
+                        await supabase.from('order_items').insert(itemsToInsert)
+                    }
+
+                    // Update table if dine-in
+                    if (order.order_type === 'dine-in' && order.table_id) {
+                        await supabase
+                            .from('restaurant_tables')
+                            .update({
+                                status: 'occupied',
+                                waiter_id: order.waiter_id,
+                                current_order_id: newOrder.id
+                            })
+                            .eq('id', order.table_id)
+                    }
+
+                    // Update waiter stats
+                    if (order.waiter_id) {
+                        await supabase.rpc('increment_waiter_stats', {
+                            p_waiter_id: order.waiter_id,
+                            p_orders: 1,
+                            p_revenue: order.total_amount
+                        })
+                    }
+
+                    // Delete from IndexedDB
+                    await db.delete(STORES.ORDERS, order.id)
+                    for (const item of items) {
+                        await db.delete(STORES.ORDER_ITEMS, item.id)
+                    }
+
+                    synced++
+                    this.pendingOperations.delete(order.id)
+
+                    console.log(`✅ Synced order: ${order.id} -> ${newOrder.id}`)
+                } catch (error) {
+                    console.error(`Failed to sync order ${order.id}:`, error)
+                    this.pendingOperations.delete(order.id)
+                }
+            }
+
+            return { success: true, synced }
+        } catch (error) {
+            console.error('Orders sync error:', error)
+            return { success: false, synced }
+        }
+    }
+
+    // ✅ Sync attendance to Supabase
+    private async syncAttendance(): Promise<{ success: boolean; synced: number }> {
+        const supabase = createClient()
+        let synced = 0
+
+        try {
+            const allShifts = await db.getAll('waiter_shifts') as any[]
+            const pendingShifts = allShifts.filter(s => !s.synced && s.id.startsWith('offline_'))
+
+            if (pendingShifts.length === 0) {
+                return { success: true, synced: 0 }
+            }
+
+            console.log(`📤 Syncing ${pendingShifts.length} attendance records...`)
+
+            for (const shift of pendingShifts) {
+                if (this.pendingOperations.has(shift.id)) continue
+                this.pendingOperations.add(shift.id)
+
+                try {
+                    const { error } = await supabase
+                        .from('waiter_shifts')
+                        .insert({
+                            waiter_id: shift.waiter_id,
+                            clock_in: shift.clock_in,
+                            clock_out: shift.clock_out,
+                            created_at: shift.created_at
+                        })
+
+                    if (error) throw error
+
+                    await db.delete('waiter_shifts', shift.id)
+                    synced++
+                    this.pendingOperations.delete(shift.id)
+
+                    console.log(`✅ Synced attendance: ${shift.id}`)
+                } catch (error) {
+                    console.error(`Failed to sync attendance ${shift.id}:`, error)
+                    this.pendingOperations.delete(shift.id)
+                }
+            }
+
+            return { success: true, synced }
+        } catch (error) {
+            console.error('Attendance sync error:', error)
+            return { success: false, synced }
+        }
+    }
+
+    // ✅ Get pending count
+    async getPendingCount(): Promise<number> {
+        try {
+            const [orders, shifts] = await Promise.all([
+                db.getAll(STORES.ORDERS),
+                db.getAll('waiter_shifts')
+            ])
+
+            const pendingOrders = (orders as any[]).filter(o => !o.synced && o.id.startsWith('offline_'))
+            const pendingShifts = (shifts as any[]).filter(s => !s.synced && s.id.startsWith('offline_'))
+
+            return pendingOrders.length + pendingShifts.length
+        } catch (error) {
+            return 0
+        }
+    }
+
+    // ✅ Dispatch custom events
+    private dispatchEvent(type: string, detail: any) {
+        if (typeof window === 'undefined') return
+        window.dispatchEvent(new CustomEvent(type, { detail }))
+    }
+
+    // ✅ Cleanup
+    destroy() {
+        if (this.syncInterval) {
+            clearInterval(this.syncInterval)
+        }
+    }
+}
+
+// ✅ Export singleton
+export const realtimeSync = new RealtimeSync()

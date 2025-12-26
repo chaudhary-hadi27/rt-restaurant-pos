@@ -1,3 +1,4 @@
+// src/app/layout.tsx - UPDATED WITH SYNC INTEGRATION
 import type { Metadata, Viewport } from "next"
 import { Geist } from "next/font/google"
 import "./globals.css"
@@ -9,6 +10,9 @@ import OfflineIndicator from '@/components/ui/OfflineIndicator'
 import OfflineInitializer from '@/components/OfflineInitializer'
 import SyncProgressIndicator from '@/components/ui/SyncProgressIndicator'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+
+// ✅ IMPORT REALTIME SYNC (Auto-starts background sync)
+import '@/lib/db/realtimeSync'
 
 const geist = Geist({ variable: "--font-geist", subsets: ["latin"] })
 
@@ -59,7 +63,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <meta name="mobile-web-app-capable" content="yes" />
             <meta name="apple-mobile-web-app-capable" content="yes" />
 
-            {/* ✅ Enhanced Service Worker Registration */}
             <script dangerouslySetInnerHTML={{
                 __html: `
                     if('serviceWorker' in navigator) {
@@ -68,7 +71,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                                 const reg = await navigator.serviceWorker.register('/sw.js');
                                 console.log('✅ Service Worker registered');
                                 
-                                // Auto-update on new version
                                 reg.addEventListener('updatefound', () => {
                                     const newWorker = reg.installing;
                                     if (newWorker) {

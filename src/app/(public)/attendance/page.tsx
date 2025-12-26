@@ -1,56 +1,106 @@
+// src/app/(public)/attendance/page.tsx - UPDATED WITH OFFLINE SUPPORT
 'use client'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Timer, LogIn, LogOut, AlertCircle } from 'lucide-react'
+import { Timer, LogIn, LogOut, AlertCircle, WifiOff } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { getWaiterStatusColor } from '@/lib/utils/statusHelpers'
+import { db } from '@/lib/db/indexedDB'
+import { STORES } from '@/lib/db/schema'
+import { useOfflineStatus } from '@/lib/hooks/useOfflineStatus'
 
 export default function AttendancePage() {
     const [waiters, setWaiters] = useState<any[]>([])
     const [loading, setLoading] = useState(false)
     const supabase = createClient()
     const toast = useToast()
+    const { isOnline } = useOfflineStatus()
 
-    useEffect(() => { load() }, [])
+    useEffect(() => { load() }, [isOnline])
 
     const load = async () => {
-        const { data } = await supabase
-            .from('waiters')
-            .select('*')
-            .eq('is_active', true)
-            .order('name')
-        setWaiters(data || [])
+        try {
+            if (isOnline) {
+                const { data } = await supabase
+                    .from('waiters')
+                    .select('*')
+                    .eq('is_active', true)
+                    .order('name')
+                setWaiters(data || [])
+
+                // Cache for offline
+                if (data && data.length > 0) {
+                    await db.put(STORES.SETTINGS, {
+                        key: 'waiters',
+                        value: data
+                    })
+                }
+            } else {
+                // Load from cache
+                const cached = await db.get(STORES.SETTINGS, 'waiters')
+                if (cached && (cached as any).value) {
+                    setWaiters((cached as any).value)
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load waiters:', error)
+        }
     }
 
     const handleClockIn = async (waiterId: string) => {
         setLoading(true)
         try {
-            // Check if already clocked in
-            const { data: existingShift } = await supabase
-                .from('waiter_shifts')
-                .select('id')
-                .eq('waiter_id', waiterId)
-                .is('clock_out', null)
-                .single()
+            const now = new Date().toISOString()
 
-            if (existingShift) {
-                toast.add('error', '⚠️ Already clocked in!')
-                setLoading(false)
-                return
+            if (isOnline) {
+                // Check if already clocked in
+                const { data: existingShift } = await supabase
+                    .from('waiter_shifts')
+                    .select('id')
+                    .eq('waiter_id', waiterId)
+                    .is('clock_out', null)
+                    .single()
+
+                if (existingShift) {
+                    toast.add('error', '⚠️ Already clocked in!')
+                    setLoading(false)
+                    return
+                }
+
+                await supabase
+                    .from('waiter_shifts')
+                    .insert({ waiter_id: waiterId, clock_in: now })
+
+                await supabase
+                    .from('waiters')
+                    .update({ is_on_duty: true })
+                    .eq('id', waiterId)
+
+                toast.add('success', '✅ Clocked in!')
+            } else {
+                // ✅ Offline clock-in
+                const offlineId = `offline_shift_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+                await db.put('waiter_shifts', {
+                    id: offlineId,
+                    waiter_id: waiterId,
+                    clock_in: now,
+                    clock_out: null,
+                    synced: false,
+                    created_at: now
+                })
+
+                // Update local waiter status
+                const updatedWaiters = waiters.map(w =>
+                    w.id === waiterId ? { ...w, is_on_duty: true } : w
+                )
+                setWaiters(updatedWaiters)
+
+                toast.add('success', '✅ Clocked in offline! Will sync when online.')
             }
 
-            await supabase
-                .from('waiter_shifts')
-                .insert({ waiter_id: waiterId, clock_in: new Date().toISOString() })
-
-            await supabase
-                .from('waiters')
-                .update({ is_on_duty: true })
-                .eq('id', waiterId)
-
-            toast.add('success', '✅ Clocked in!')
             load()
         } catch (error) {
             toast.add('error', '❌ Failed')
@@ -61,27 +111,53 @@ export default function AttendancePage() {
     const handleClockOut = async (waiterId: string) => {
         setLoading(true)
         try {
-            const { data: shift } = await supabase
-                .from('waiter_shifts')
-                .select('id')
-                .eq('waiter_id', waiterId)
-                .is('clock_out', null)
-                .single()
+            const now = new Date().toISOString()
 
-            if (shift) {
-                await supabase
+            if (isOnline) {
+                const { data: shift } = await supabase
                     .from('waiter_shifts')
-                    .update({ clock_out: new Date().toISOString() })
-                    .eq('id', shift.id)
+                    .select('id')
+                    .eq('waiter_id', waiterId)
+                    .is('clock_out', null)
+                    .single()
 
-                await supabase
-                    .from('waiters')
-                    .update({ is_on_duty: false })
-                    .eq('id', waiterId)
+                if (shift) {
+                    await supabase
+                        .from('waiter_shifts')
+                        .update({ clock_out: now })
+                        .eq('id', shift.id)
 
-                toast.add('success', '✅ Clocked out!')
-                load()
+                    await supabase
+                        .from('waiters')
+                        .update({ is_on_duty: false })
+                        .eq('id', waiterId)
+
+                    toast.add('success', '✅ Clocked out!')
+                }
+            } else {
+                // ✅ Offline clock-out
+                const allShifts = await db.getAll('waiter_shifts') as any[]
+                const activeShift = allShifts.find(s =>
+                    s.waiter_id === waiterId && !s.clock_out
+                )
+
+                if (activeShift) {
+                    await db.put('waiter_shifts', {
+                        ...activeShift,
+                        clock_out: now
+                    })
+
+                    // Update local waiter status
+                    const updatedWaiters = waiters.map(w =>
+                        w.id === waiterId ? { ...w, is_on_duty: false } : w
+                    )
+                    setWaiters(updatedWaiters)
+
+                    toast.add('success', '✅ Clocked out offline! Will sync when online.')
+                }
             }
+
+            load()
         } catch (error) {
             toast.add('error', '❌ Failed')
         }
@@ -90,10 +166,24 @@ export default function AttendancePage() {
 
     return (
         <div className="min-h-screen bg-[var(--bg)]">
-            <PageHeader title="Attendance" subtitle="Mark your presence" />
+            <PageHeader
+                title="Attendance"
+                subtitle={`Mark your presence${!isOnline ? ' • Offline mode' : ''}`}
+            />
 
             <div className="max-w-4xl mx-auto px-3 sm:px-4 lg:px-8 py-6">
-                {/* Info Banner */}
+                {!isOnline && (
+                    <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3">
+                        <WifiOff className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm">
+                            <p className="font-semibold text-[var(--fg)] mb-1">Offline Mode Active</p>
+                            <p className="text-[var(--muted)]">
+                                Attendance will sync automatically when you're back online.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 <div className="mb-6 p-4 bg-blue-600/10 border border-blue-600/30 rounded-lg flex items-start gap-3">
                     <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                     <div className="text-sm">
@@ -174,7 +264,9 @@ export default function AttendancePage() {
                         <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-12 text-center">
                             <Timer className="w-16 h-16 mx-auto mb-4 text-[var(--muted)]" />
                             <p className="text-[var(--fg)] font-medium mb-2">No staff members found</p>
-                            <p className="text-sm text-[var(--muted)]">Add staff members in admin panel</p>
+                            <p className="text-sm text-[var(--muted)]">
+                                {!isOnline ? 'Go online to see staff members' : 'Add staff members in admin panel'}
+                            </p>
                         </div>
                     )}
                 </div>
