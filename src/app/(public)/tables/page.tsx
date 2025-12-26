@@ -1,8 +1,8 @@
-// src/app/(public)/tables/page.tsx - REFACTORED (400 → 130 lines)
+// src/app/(public)/tables/page.tsx - FIXED WITH OFFLINE STATUS
 "use client"
 
 import { useState, useMemo } from 'react'
-import { RefreshCw, DollarSign } from 'lucide-react'
+import { RefreshCw, DollarSign, WifiOff } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import ResponsiveStatsGrid from '@/components/ui/ResponsiveStatsGrid'
 import { UniversalDataTable } from '@/components/ui/UniversalDataTable'
@@ -11,6 +11,7 @@ import UniversalModal from '@/components/ui/UniversalModal'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useDataLoader, useTablesSync } from '@/lib/hooks'
 import { getTableStatusColor } from '@/lib/utils/statusHelpers'
+import { useOfflineStatus } from '@/lib/hooks/useOfflineStatus'
 import type { TableWithRelations } from '@/types'
 
 export default function TablesPage() {
@@ -29,6 +30,9 @@ export default function TablesPage() {
         filter: { status: 'pending' }
     })
 
+    // ✅ ADD: Get offline status
+    const { isOnline } = useOfflineStatus()
+
     useTablesSync(refresh)
 
     const enrichedTables: TableWithRelations[] = useMemo(() =>
@@ -44,7 +48,7 @@ export default function TablesPage() {
         , [enrichedTables, statusFilter])
 
     const stats = useMemo(() => [
-        { label: 'Total', value: tables.length, color: '#3b82f6', onClick: () => setStatusFilter('all'), active: statusFilter === 'all' },
+        { label: 'Total', value: tables.length, color: '#3b82f6', onClick: () => setStatusFilter('all'), active: statusFilter === 'all', subtext: `${enrichedTables.filter(t => t.status === 'available').length} available` },
         { label: 'Available', value: tables.filter(t => t.status === 'available').length, color: '#10b981', onClick: () => setStatusFilter('available'), active: statusFilter === 'available' },
         { label: 'Occupied', value: tables.filter(t => t.status === 'occupied').length, color: '#ef4444', onClick: () => setStatusFilter('occupied'), active: statusFilter === 'occupied' },
         { label: 'Reserved', value: tables.filter(t => t.status === 'reserved').length, color: '#f59e0b', onClick: () => setStatusFilter('reserved'), active: statusFilter === 'reserved' }
@@ -99,12 +103,30 @@ export default function TablesPage() {
             <div className="min-h-screen bg-[var(--bg)]">
                 <AutoSidebar items={sidebarItems} title="Status" />
                 <div className="lg:ml-64">
-                    <PageHeader title="Tables" subtitle="Restaurant tables & running bills"
-                                action={<button onClick={refresh} className="p-2 hover:bg-[var(--bg)] rounded-lg active:scale-95">
-                                    <RefreshCw className="w-5 h-5 text-[var(--muted)]" />
-                                </button>} />
+                    <PageHeader
+                        title="Tables"
+                        subtitle={`Restaurant tables & running bills${!isOnline ? ' • Offline mode' : ''}`}
+                        action={
+                            <button onClick={refresh} className="p-2 hover:bg-[var(--bg)] rounded-lg active:scale-95">
+                                <RefreshCw className="w-5 h-5 text-[var(--muted)]" />
+                            </button>
+                        }
+                    />
 
                     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+                        {/* ✅ ADD: Offline Warning Banner */}
+                        {!isOnline && (
+                            <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3">
+                                <WifiOff className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                                <div className="text-sm">
+                                    <p className="font-semibold text-[var(--fg)] mb-1">Offline Mode Active</p>
+                                    <p className="text-[var(--muted)]">
+                                        Showing cached data. Table status updates will sync when you're back online.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
                         <ResponsiveStatsGrid stats={stats} />
                         <UniversalDataTable columns={columns} data={filtered} loading={loading} searchable onRowClick={setSelectedTable} />
                     </div>

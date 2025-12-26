@@ -1,4 +1,4 @@
-// src/lib/db/offlineManager.ts - FIXED OFFLINE MANAGER
+// src/lib/db/offlineManager.ts - COMPLETE FIXED VERSION
 import { createClient } from '@/lib/supabase/client'
 import { db } from './indexedDB'
 import { STORES } from './schema'
@@ -76,7 +76,7 @@ class OfflineManager {
 
             console.log('📥 Syncing essential data...')
 
-            // ✅ FIX: Fetch data with proper error handling
+            // ✅ Fetch data with proper error handling
             const [categoriesResult, itemsResult, tablesResult, waitersResult] = await Promise.allSettled([
                 supabase.from('menu_categories').select('*').eq('is_active', true).order('display_order'),
                 supabase.from('menu_items').select('*').eq('is_available', true).order('name'),
@@ -84,7 +84,7 @@ class OfflineManager {
                 supabase.from('waiters').select('*').eq('is_active', true).order('name')
             ])
 
-            // ✅ FIX: Safe data extraction
+            // ✅ Safe data extraction
             const categoriesData = categoriesResult.status === 'fulfilled' && Array.isArray(categoriesResult.value.data)
                 ? categoriesResult.value.data
                 : []
@@ -112,8 +112,9 @@ class OfflineManager {
                 })
             }
 
-            // ✅ FIX: Store with validation
+            // ✅ CLEAR OLD DATA BEFORE STORING NEW (This fixes deleted items issue)
             if (categoriesData.length > 0) {
+                await db.clear(STORES.MENU_CATEGORIES)
                 await db.bulkPut(STORES.MENU_CATEGORIES, categoriesData)
                 await db.put(STORES.SETTINGS, {
                     key: 'categories_version',
@@ -123,6 +124,7 @@ class OfflineManager {
             }
 
             if (itemsData.length > 0) {
+                await db.clear(STORES.MENU_ITEMS)
                 await db.bulkPut(STORES.MENU_ITEMS, itemsData)
                 await db.put(STORES.SETTINGS, {
                     key: 'menu_version',
@@ -131,9 +133,10 @@ class OfflineManager {
                 updateProgress(2)
             }
 
+            // ✅ Store tables directly in SETTINGS
             if (tablesData.length > 0) {
                 await db.put(STORES.SETTINGS, {
-                    key: 'tables',
+                    key: 'restaurant_tables',
                     value: tablesData
                 })
                 updateProgress(3)
@@ -200,7 +203,6 @@ class OfflineManager {
             const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000)
             const ordersData = await db.getAll(STORES.ORDERS)
 
-            // ✅ FIX: Validate array before operations
             if (!Array.isArray(ordersData) || ordersData.length === 0) {
                 return 0
             }
@@ -318,7 +320,6 @@ class OfflineManager {
         try {
             if (store === 'restaurant_tables' || store === 'waiters') {
                 const data = await db.get(STORES.SETTINGS, store)
-                // ✅ FIX: Validate data structure
                 if (data && typeof data === 'object' && 'value' in data) {
                     const value = (data as any).value
                     return Array.isArray(value) ? value : []

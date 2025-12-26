@@ -144,7 +144,9 @@ export default function OrdersPage() {
         { key: 'order', label: 'Order', render: (row: any) => (
                 <div className="flex items-center gap-2">
                     {row.id.startsWith('offline_') && (
-                        <WifiOff className="w-4 h-4 text-yellow-600 flex-shrink-0"title="Offline order" />
+                        <div title="Offline order">
+                            <WifiOff className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+                        </div>
                     )}
                     <div>
                         <p className="font-medium text-[var(--fg)] text-sm">#{row.id.slice(0, 8).toUpperCase()}</p>

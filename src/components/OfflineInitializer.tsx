@@ -1,4 +1,4 @@
-// src/components/OfflineInitializer.tsx - FIXED
+// src/components/OfflineInitializer.tsx - COMPLETE FIXED VERSION
 'use client'
 
 import { useEffect } from 'react'
@@ -6,27 +6,22 @@ import { offlineManager } from '@/lib/db/offlineManager'
 
 export default function OfflineInitializer() {
     useEffect(() => {
-        // ✅ FIX: Safe method call with existence check
         const initializeOfflineData = async () => {
             if (typeof navigator === 'undefined' || !navigator.onLine) {
                 return
             }
 
             try {
-                // ✅ Check if method exists before calling
-                if (typeof offlineManager.downloadEssentialData === 'function') {
-                    const result = await offlineManager.downloadEssentialData()
+                // ✅ Force sync on app load to clear stale data
+                const result = await offlineManager.downloadEssentialData(true)
 
-                    if (result?.success) {
-                        console.log('✅ Offline data cached:', {
-                            categories: result.counts?.categories || 0,
-                            items: result.counts?.items || 0,
-                            tables: result.counts?.tables || 0,
-                            waiters: result.counts?.waiters || 0
-                        })
-                    }
-                } else {
-                    console.warn('⚠️ offlineManager.downloadEssentialData not available')
+                if (result?.success) {
+                    console.log('✅ Offline data synced on load:', {
+                        categories: result.counts?.categories || 0,
+                        items: result.counts?.items || 0,
+                        tables: result.counts?.tables || 0,
+                        waiters: result.counts?.waiters || 0
+                    })
                 }
             } catch (error) {
                 console.error('❌ Failed to initialize offline data:', error)
