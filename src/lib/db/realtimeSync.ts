@@ -1,12 +1,12 @@
-// src/lib/db/realtimeSync.ts - FIXED WAITER_SHIFTS SYNC
+// src/lib/db/realtimeSync.ts - PRODUCTION FIXED VERSION
 import { createClient } from '@/lib/supabase/client'
 import { db } from './indexedDB'
 import { STORES } from './schema'
 
 export class RealtimeSync {
+    private syncQueue: Promise<any> | null = null
     private syncInterval: NodeJS.Timeout | null = null
-    private isSyncing = false
-    private pendingOperations: Set<string> = new Set()
+    private pendingOperations: Map<string, 'processing' | 'failed'> = new Map()
 
     constructor() {
         if (typeof window !== 'undefined') {
@@ -16,8 +16,9 @@ export class RealtimeSync {
     }
 
     private startAutoSync() {
+        // Sync every 30 seconds if online
         this.syncInterval = setInterval(() => {
-            if (navigator.onLine && !this.isSyncing) {
+            if (navigator.onLine && !this.syncQueue) {
                 this.syncAll()
             }
         }, 30000)
@@ -26,13 +27,16 @@ export class RealtimeSync {
     private setupOnlineListener() {
         window.addEventListener('online', () => {
             console.log('🌐 Back online! Starting sync...')
-            this.syncAll()
+            // Small delay to ensure connection is stable
+            setTimeout(() => this.syncAll(), 1000)
         })
     }
 
     async syncAll(): Promise<{ success: boolean; synced: number }> {
-        if (this.isSyncing) {
-            return { success: false, synced: 0 }
+        // ✅ FIX #4: Queue sync operations to prevent race conditions
+        if (this.syncQueue) {
+            console.log('⏳ Sync already in progress, waiting...')
+            return this.syncQueue
         }
 
         if (!navigator.onLine) {
@@ -40,15 +44,23 @@ export class RealtimeSync {
             return { success: false, synced: 0 }
         }
 
-        this.isSyncing = true
+        this.syncQueue = this._performSync()
+        const result = await this.syncQueue
+        this.syncQueue = null
+        return result
+    }
+
+    private async _performSync(): Promise<{ success: boolean; synced: number }> {
         let totalSynced = 0
 
         try {
             this.dispatchEvent('sync-start', { message: 'Starting sync...' })
 
+            // Sync orders first
             const ordersResult = await this.syncOrders()
             totalSynced += ordersResult.synced
 
+            // Sync attendance
             const attendanceResult = await this.syncAttendance()
             totalSynced += attendanceResult.synced
 
@@ -60,8 +72,6 @@ export class RealtimeSync {
             console.error('❌ Sync failed:', error)
             this.dispatchEvent('sync-error', { error: 'Sync failed' })
             return { success: false, synced: totalSynced }
-        } finally {
-            this.isSyncing = false
         }
     }
 
@@ -70,8 +80,10 @@ export class RealtimeSync {
         let synced = 0
 
         try {
-            const allOrders = await db.getAll(STORES.ORDERS) as any[]
-            const pendingOrders = allOrders.filter(o => !o.synced && o.id.startsWith('offline_'))
+            const allOrders = (await db.getAll(STORES.ORDERS)) as any[]
+            const pendingOrders = allOrders.filter(
+                o => !o.synced && o.id.startsWith('offline_')
+            )
 
             if (pendingOrders.length === 0) {
                 return { success: true, synced: 0 }
@@ -80,10 +92,13 @@ export class RealtimeSync {
             console.log(`📤 Syncing ${pendingOrders.length} orders...`)
 
             for (const order of pendingOrders) {
+                // Skip if already processing
                 if (this.pendingOperations.has(order.id)) continue
-                this.pendingOperations.add(order.id)
+                this.pendingOperations.set(order.id, 'processing')
 
                 try {
+                    // ✅ FIX #1: Use INSERT instead of UPSERT for offline orders
+                    // Offline orders have temporary IDs, so they should create new records
                     const { data: newOrder, error: orderError } = await supabase
                         .from('orders')
                         .insert({
@@ -108,7 +123,8 @@ export class RealtimeSync {
 
                     if (orderError) throw orderError
 
-                    const orderItems = await db.getAll(STORES.ORDER_ITEMS) as any[]
+                    // Sync order items with new order ID
+                    const orderItems = (await db.getAll(STORES.ORDER_ITEMS)) as any[]
                     const items = orderItems.filter(i => i.order_id === order.id)
 
                     if (items.length > 0) {
@@ -123,6 +139,7 @@ export class RealtimeSync {
                         await supabase.from('order_items').insert(itemsToInsert)
                     }
 
+                    // ✅ FIX #5: Sync table status
                     if (order.order_type === 'dine-in' && order.table_id) {
                         await supabase
                             .from('restaurant_tables')
@@ -134,6 +151,7 @@ export class RealtimeSync {
                             .eq('id', order.table_id)
                     }
 
+                    // Update waiter stats
                     if (order.waiter_id) {
                         await supabase.rpc('increment_waiter_stats', {
                             p_waiter_id: order.waiter_id,
@@ -142,6 +160,7 @@ export class RealtimeSync {
                         })
                     }
 
+                    // ✅ Delete offline order and items from IndexedDB
                     await db.delete(STORES.ORDERS, order.id)
                     for (const item of items) {
                         await db.delete(STORES.ORDER_ITEMS, item.id)
@@ -153,7 +172,9 @@ export class RealtimeSync {
                     console.log(`✅ Synced order: ${order.id} -> ${newOrder.id}`)
                 } catch (error) {
                     console.error(`Failed to sync order ${order.id}:`, error)
-                    this.pendingOperations.delete(order.id)
+                    this.pendingOperations.set(order.id, 'failed')
+                    // Remove from map after 5 minutes to allow retry
+                    setTimeout(() => this.pendingOperations.delete(order.id), 300000)
                 }
             }
 
@@ -164,14 +185,15 @@ export class RealtimeSync {
         }
     }
 
-    // ✅ FIXED: Use correct store name
     private async syncAttendance(): Promise<{ success: boolean; synced: number }> {
         const supabase = createClient()
         let synced = 0
 
         try {
-            const allShifts = await db.getAll(STORES.WAITER_SHIFTS) as any[]
-            const pendingShifts = allShifts.filter(s => !s.synced && s.id.startsWith('offline_'))
+            const allShifts = (await db.getAll(STORES.WAITER_SHIFTS)) as any[]
+            const pendingShifts = allShifts.filter(
+                s => !s.synced && s.id.startsWith('offline_')
+            )
 
             if (pendingShifts.length === 0) {
                 return { success: true, synced: 0 }
@@ -181,7 +203,7 @@ export class RealtimeSync {
 
             for (const shift of pendingShifts) {
                 if (this.pendingOperations.has(shift.id)) continue
-                this.pendingOperations.add(shift.id)
+                this.pendingOperations.set(shift.id, 'processing')
 
                 try {
                     const { error } = await supabase
@@ -202,7 +224,8 @@ export class RealtimeSync {
                     console.log(`✅ Synced attendance: ${shift.id}`)
                 } catch (error) {
                     console.error(`Failed to sync attendance ${shift.id}:`, error)
-                    this.pendingOperations.delete(shift.id)
+                    this.pendingOperations.set(shift.id, 'failed')
+                    setTimeout(() => this.pendingOperations.delete(shift.id), 300000)
                 }
             }
 
@@ -220,8 +243,12 @@ export class RealtimeSync {
                 db.getAll(STORES.WAITER_SHIFTS)
             ])
 
-            const pendingOrders = (orders as any[]).filter(o => !o.synced && o.id.startsWith('offline_'))
-            const pendingShifts = (shifts as any[]).filter(s => !s.synced && s.id.startsWith('offline_'))
+            const pendingOrders = (orders as any[]).filter(
+                o => !o.synced && o.id.startsWith('offline_')
+            )
+            const pendingShifts = (shifts as any[]).filter(
+                s => !s.synced && s.id.startsWith('offline_')
+            )
 
             return pendingOrders.length + pendingShifts.length
         } catch (error) {

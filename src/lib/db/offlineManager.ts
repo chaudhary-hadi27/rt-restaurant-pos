@@ -1,4 +1,4 @@
-// src/lib/db/offlineManager.ts - COMPLETE FIXED VERSION
+// src/lib/db/offlineManager.ts - PRODUCTION FIXED VERSION
 import { createClient } from '@/lib/supabase/client'
 import { db } from './indexedDB'
 import { STORES } from './schema'
@@ -35,16 +35,18 @@ class OfflineManager {
     }
 
     private initAutoSync() {
+        // ✅ FIX #4: Auto-sync when going back online
         if (typeof navigator !== 'undefined' && navigator.onLine) {
             this.downloadEssentialData()
         }
 
         window.addEventListener('online', () => {
-            this.downloadEssentialData()
+            console.log('🌐 Online detected - auto-syncing data...')
+            this.downloadEssentialData(true) // Force fresh sync
             this.syncPendingOrders()
         })
 
-        // Sync every 15 minutes when online
+        // Periodic sync every 15 minutes when online
         setInterval(() => {
             if (typeof navigator !== 'undefined' && navigator.onLine) {
                 this.downloadEssentialData()
@@ -76,30 +78,52 @@ class OfflineManager {
 
             console.log('📥 Syncing essential data...')
 
-            // ✅ Fetch data with proper error handling
-            const [categoriesResult, itemsResult, tablesResult, waitersResult] = await Promise.allSettled([
-                supabase.from('menu_categories').select('*').eq('is_active', true).order('display_order'),
-                supabase.from('menu_items').select('*').eq('is_available', true).order('name'),
-                supabase.from('restaurant_tables').select('*').order('table_number'),
-                supabase.from('waiters').select('*').eq('is_active', true).order('name')
-            ])
+            const [categoriesResult, itemsResult, tablesResult, waitersResult] =
+                await Promise.allSettled([
+                    supabase
+                        .from('menu_categories')
+                        .select('*')
+                        .eq('is_active', true)
+                        .order('display_order'),
+                    supabase
+                        .from('menu_items')
+                        .select('*')
+                        .eq('is_available', true)
+                        .order('name'),
+                    supabase
+                        .from('restaurant_tables')
+                        .select('*')
+                        .order('table_number'),
+                    supabase
+                        .from('waiters')
+                        .select('*')
+                        .eq('is_active', true)
+                        .order('name')
+                ])
 
-            // ✅ Safe data extraction
-            const categoriesData = categoriesResult.status === 'fulfilled' && Array.isArray(categoriesResult.value.data)
-                ? categoriesResult.value.data
-                : []
+            const categoriesData =
+                categoriesResult.status === 'fulfilled' &&
+                Array.isArray(categoriesResult.value.data)
+                    ? categoriesResult.value.data
+                    : []
 
-            const itemsData = itemsResult.status === 'fulfilled' && Array.isArray(itemsResult.value.data)
-                ? itemsResult.value.data
-                : []
+            const itemsData =
+                itemsResult.status === 'fulfilled' &&
+                Array.isArray(itemsResult.value.data)
+                    ? itemsResult.value.data
+                    : []
 
-            const tablesData = tablesResult.status === 'fulfilled' && Array.isArray(tablesResult.value.data)
-                ? tablesResult.value.data
-                : []
+            const tablesData =
+                tablesResult.status === 'fulfilled' &&
+                Array.isArray(tablesResult.value.data)
+                    ? tablesResult.value.data
+                    : []
 
-            const waitersData = waitersResult.status === 'fulfilled' && Array.isArray(waitersResult.value.data)
-                ? waitersResult.value.data
-                : []
+            const waitersData =
+                waitersResult.status === 'fulfilled' &&
+                Array.isArray(waitersResult.value.data)
+                    ? waitersResult.value.data
+                    : []
 
             let progress = 0
             const updateProgress = (current: number) => {
@@ -112,7 +136,7 @@ class OfflineManager {
                 })
             }
 
-            // ✅ CLEAR OLD DATA BEFORE STORING NEW (This fixes deleted items issue)
+            // ✅ FIX #2: ALWAYS clear before storing to remove stale data
             if (categoriesData.length > 0) {
                 await db.clear(STORES.MENU_CATEGORIES)
                 await db.bulkPut(STORES.MENU_CATEGORIES, categoriesData)
@@ -133,7 +157,6 @@ class OfflineManager {
                 updateProgress(2)
             }
 
-            // ✅ Store tables directly in SETTINGS
             if (tablesData.length > 0) {
                 await db.put(STORES.SETTINGS, {
                     key: 'restaurant_tables',
@@ -200,7 +223,7 @@ class OfflineManager {
 
     async cleanupOldData(): Promise<number> {
         try {
-            const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000)
+            const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
             const ordersData = await db.getAll(STORES.ORDERS)
 
             if (!Array.isArray(ordersData) || ordersData.length === 0) {
@@ -220,7 +243,11 @@ class OfflineManager {
 
             const sortedOrders = orders
                 .filter(o => o.status === 'completed')
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                .sort(
+                    (a, b) =>
+                        new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime()
+                )
 
             const ordersToDelete = sortedOrders.slice(200)
             const allDeletes = [...new Set([...oldOrders, ...ordersToDelete])]
@@ -250,7 +277,11 @@ class OfflineManager {
     }
 
     async syncPendingOrders(): Promise<{ success: boolean; synced: number }> {
-        if (this.syncInProgress || typeof navigator === 'undefined' || !navigator.onLine) {
+        if (
+            this.syncInProgress ||
+            typeof navigator === 'undefined' ||
+            !navigator.onLine
+        ) {
             return { success: false, synced: 0 }
         }
 
@@ -280,15 +311,15 @@ class OfflineManager {
             for (let i = 0; i < pendingOrders.length; i++) {
                 const order = pendingOrders[i]
                 try {
-                    const { error } = await supabase
-                        .from('orders')
-                        .insert(order)
+                    const { error } = await supabase.from('orders').insert(order)
 
                     if (!error) {
                         await db.put(STORES.ORDERS, { ...order, synced: true })
                         syncedCount++
 
-                        const progress = Math.round(((i + 1) / pendingOrders.length) * 100)
+                        const progress = Math.round(
+                            ((i + 1) / pendingOrders.length) * 100
+                        )
                         dispatchSyncEvent('sync-progress', {
                             progress,
                             current: i + 1,
@@ -335,56 +366,6 @@ class OfflineManager {
         }
     }
 
-    async getStorageInfo(): Promise<any> {
-        try {
-            const [ordersData, menuItemsData, menuVersion] = await Promise.all([
-                db.getAll(STORES.ORDERS),
-                db.getAll(STORES.MENU_ITEMS),
-                db.get(STORES.SETTINGS, 'menu_version')
-            ])
-
-            const orders = Array.isArray(ordersData) ? ordersData : []
-            const menuItems = Array.isArray(menuItemsData) ? menuItemsData : []
-
-            const menuSize = menuItems.length * 2
-            const ordersSize = orders.length * 5
-            const imagesSize = menuItems.filter(i => i.image_url).length * 100
-
-            const estimate = await navigator.storage?.estimate() || { usage: 0, quota: 0 }
-            const used = Math.round((estimate.usage || 0) / (1024 * 1024 * 1024))
-            const limit = Math.round((estimate.quota || 0) / (1024 * 1024 * 1024))
-
-            const hasData = await this.isOfflineReady()
-            const dataAge = menuVersion ? Date.now() - (menuVersion as any).value : Infinity
-            const isFresh = dataAge < 24 * 60 * 60 * 1000
-
-            return {
-                used,
-                limit,
-                percentage: limit > 0 ? Math.round((used / limit) * 100) : 0,
-                hasData: hasData && isFresh,
-                ordersCount: orders.length,
-                menuItemsCount: menuItems.length,
-                breakdown: {
-                    menu: menuSize,
-                    orders: ordersSize,
-                    images: imagesSize,
-                    total: menuSize + ordersSize + imagesSize
-                }
-            }
-        } catch (error) {
-            return {
-                used: 0,
-                limit: 0,
-                percentage: 0,
-                hasData: false,
-                ordersCount: 0,
-                menuItemsCount: 0,
-                breakdown: { menu: 0, orders: 0, images: 0, total: 0 }
-            }
-        }
-    }
-
     async isOfflineReady(): Promise<boolean> {
         const ready = localStorage.getItem('offline_ready') === 'true'
         if (!ready) return false
@@ -394,12 +375,21 @@ class OfflineManager {
             db.getAll(STORES.MENU_ITEMS)
         ])
 
-        return Array.isArray(categories) && categories.length > 0 &&
-            Array.isArray(items) && items.length > 0
+        return (
+            Array.isArray(categories) &&
+            categories.length > 0 &&
+            Array.isArray(items) &&
+            items.length > 0
+        )
     }
 
     async clearAllData(includeMenu = false): Promise<void> {
-        const storesToClear = [STORES.ORDERS, STORES.ORDER_ITEMS, STORES.CART, STORES.SYNC_QUEUE]
+        const storesToClear = [
+            STORES.ORDERS,
+            STORES.ORDER_ITEMS,
+            STORES.CART,
+            STORES.SYNC_QUEUE
+        ]
 
         if (includeMenu) {
             storesToClear.push(STORES.MENU_ITEMS, STORES.MENU_CATEGORIES)
@@ -418,11 +408,3 @@ class OfflineManager {
 }
 
 export const offlineManager = new OfflineManager()
-
-if (typeof window !== 'undefined') {
-    offlineManager.cleanupOldData()
-
-    window.addEventListener('online', () => {
-        offlineManager.syncPendingOrders()
-    })
-}
