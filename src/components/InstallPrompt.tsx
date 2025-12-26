@@ -16,7 +16,8 @@ export default function InstallPrompt() {
     useEffect(() => {
         // ✅ Check if already installed
         const isInstalled = window.matchMedia('(display-mode: standalone)').matches ||
-            localStorage.getItem('app_installed') === 'true'
+            localStorage.removeItem('install_prompt_dismissed')
+        localStorage.removeItem('app_installed')
         if (isInstalled) return
 
         // ✅ Check if prompt was dismissed recently (24h)

@@ -1,10 +1,9 @@
-// src/components/features/receipt/ReceiptGenerator.tsx - WITH AUTO-PRINT
+// src/components/features/receipt/ReceiptGenerator.tsx - MANUAL PRINT ONLY
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Printer, Download, X, CheckCircle } from 'lucide-react'
+import { Printer, Download, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { printManager } from '@/lib/utils/autoPrint'
 
 type ReceiptProps = {
     order: {
@@ -23,28 +22,18 @@ type ReceiptProps = {
         }>
     }
     onClose: () => void
-    autoPrint?: boolean // ✅ New prop
 }
 
-export default function ReceiptModal({ order, onClose, autoPrint = true }: ReceiptProps) {
+export default function ReceiptModal({ order, onClose }: ReceiptProps) {
     const [categories, setCategories] = useState<any[]>([])
     const [adminInfo, setAdminInfo] = useState<{ name: string; bio?: string; profile_pic?: string } | null>(null)
     const [downloading, setDownloading] = useState(false)
-    const [printing, setPrinting] = useState(false)
-    const [printed, setPrinted] = useState(false)
     const receiptRef = useRef<HTMLDivElement>(null)
     const supabase = createClient()
 
     useEffect(() => {
         loadData()
     }, [])
-
-    // ✅ Auto-print on mount if enabled
-    useEffect(() => {
-        if (autoPrint && receiptRef.current && !printed) {
-            handleAutoPrint()
-        }
-    }, [autoPrint, printed])
 
     const loadData = async () => {
         const { data: cats } = await supabase
@@ -69,25 +58,7 @@ export default function ReceiptModal({ order, onClose, autoPrint = true }: Recei
         return acc
     }, {})
 
-    // ✅ Auto-print handler
-    const handleAutoPrint = async () => {
-        if (printing || printed) return
-
-        setPrinting(true)
-        try {
-            const success = await printManager.autoPrint('receipt-content')
-            if (success) {
-                setPrinted(true)
-                console.log('✅ Receipt auto-printed')
-            }
-        } catch (error) {
-            console.error('Auto-print failed:', error)
-        } finally {
-            setPrinting(false)
-        }
-    }
-
-    const handleManualPrint = () => {
+    const handlePrint = () => {
         window.print()
     }
 
@@ -129,15 +100,7 @@ export default function ReceiptModal({ order, onClose, autoPrint = true }: Recei
                 <div className="flex items-center justify-between p-4 sm:p-6 border-b">
                     <div className="flex items-center gap-3">
                         <Printer className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                        <div>
-                            <h3 className="text-lg sm:text-xl font-bold text-gray-900">Receipt</h3>
-                            {printed && (
-                                <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
-                                    <CheckCircle className="w-3 h-3" />
-                                    Printed
-                                </div>
-                            )}
-                        </div>
+                        <h3 className="text-lg sm:text-xl font-bold text-gray-900">Receipt</h3>
                     </div>
                     <button onClick={onClose} className="p-2 hover:opacity-70 text-gray-500">
                         <X className="w-5 h-5" />
@@ -176,7 +139,7 @@ export default function ReceiptModal({ order, onClose, autoPrint = true }: Recei
 
                     {/* Restaurant Header */}
                     <div className="text-center mb-4 sm:mb-6">
-                        <h2 className="text-xl sm:text-2xl font-bold mb-1 text-gray-900">RT Restaurant</h2>
+                        <h2 className="text-xl sm:text-2xl font-bold mb-1 text-gray-900">AT Restaurant</h2>
                         <p className="text-xs sm:text-sm text-gray-600">Delicious Food, Memorable Moments</p>
                         <div className="border-t-2 border-dashed my-2 sm:my-3 border-gray-300"></div>
                         <p className="text-xs sm:text-sm text-gray-600">Sooter Mills Rd, Lahore</p>
@@ -240,7 +203,7 @@ export default function ReceiptModal({ order, onClose, autoPrint = true }: Recei
                             <span className="text-gray-900">PKR {order.subtotal.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-gray-600">Tax (0%)</span>
+                            <span className="text-gray-600">Tax</span>
                             <span className="text-gray-900">PKR {order.tax.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-base sm:text-lg font-bold pt-2 border-t border-gray-300">
@@ -279,11 +242,11 @@ export default function ReceiptModal({ order, onClose, autoPrint = true }: Recei
                         )}
                     </button>
                     <button
-                        onClick={handleManualPrint}
+                        onClick={handlePrint}
                         className="flex-1 px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-medium flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 text-sm"
                     >
                         <Printer className="w-4 h-4" />
-                        {printing ? 'Printing...' : 'Print Again'}
+                        Print Receipt
                     </button>
                 </div>
             </div>

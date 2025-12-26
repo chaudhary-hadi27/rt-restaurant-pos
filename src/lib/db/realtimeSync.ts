@@ -1,4 +1,4 @@
-// src/lib/db/realtimeSync.ts - PRODUCTION FIXED VERSION
+// src/lib/db/realtimeSync.ts - PRODUCTION CLEAN
 import { createClient } from '@/lib/supabase/client'
 import { db } from './indexedDB'
 import { STORES } from './schema'
@@ -16,7 +16,6 @@ export class RealtimeSync {
     }
 
     private startAutoSync() {
-        // Sync every 30 seconds if online
         this.syncInterval = setInterval(() => {
             if (navigator.onLine && !this.syncQueue) {
                 this.syncAll()
@@ -26,21 +25,16 @@ export class RealtimeSync {
 
     private setupOnlineListener() {
         window.addEventListener('online', () => {
-            console.log('🌐 Back online! Starting sync...')
-            // Small delay to ensure connection is stable
             setTimeout(() => this.syncAll(), 1000)
         })
     }
 
     async syncAll(): Promise<{ success: boolean; synced: number }> {
-        // ✅ FIX #4: Queue sync operations to prevent race conditions
         if (this.syncQueue) {
-            console.log('⏳ Sync already in progress, waiting...')
             return this.syncQueue
         }
 
         if (!navigator.onLine) {
-            console.log('📴 Offline - skipping sync')
             return { success: false, synced: 0 }
         }
 
@@ -56,20 +50,16 @@ export class RealtimeSync {
         try {
             this.dispatchEvent('sync-start', { message: 'Starting sync...' })
 
-            // Sync orders first
             const ordersResult = await this.syncOrders()
             totalSynced += ordersResult.synced
 
-            // Sync attendance
             const attendanceResult = await this.syncAttendance()
             totalSynced += attendanceResult.synced
 
             this.dispatchEvent('sync-complete', { synced: totalSynced })
 
-            console.log(`✅ Sync complete: ${totalSynced} items`)
             return { success: true, synced: totalSynced }
         } catch (error) {
-            console.error('❌ Sync failed:', error)
             this.dispatchEvent('sync-error', { error: 'Sync failed' })
             return { success: false, synced: totalSynced }
         }
@@ -89,16 +79,11 @@ export class RealtimeSync {
                 return { success: true, synced: 0 }
             }
 
-            console.log(`📤 Syncing ${pendingOrders.length} orders...`)
-
             for (const order of pendingOrders) {
-                // Skip if already processing
                 if (this.pendingOperations.has(order.id)) continue
                 this.pendingOperations.set(order.id, 'processing')
 
                 try {
-                    // ✅ FIX #1: Use INSERT instead of UPSERT for offline orders
-                    // Offline orders have temporary IDs, so they should create new records
                     const { data: newOrder, error: orderError } = await supabase
                         .from('orders')
                         .insert({
@@ -121,9 +106,9 @@ export class RealtimeSync {
                         .select()
                         .single()
 
-                    if (orderError) throw orderError
+                    if (orderError) throw order
+                    Error
 
-                    // Sync order items with new order ID
                     const orderItems = (await db.getAll(STORES.ORDER_ITEMS)) as any[]
                     const items = orderItems.filter(i => i.order_id === order.id)
 
@@ -139,7 +124,6 @@ export class RealtimeSync {
                         await supabase.from('order_items').insert(itemsToInsert)
                     }
 
-                    // ✅ FIX #5: Sync table status
                     if (order.order_type === 'dine-in' && order.table_id) {
                         await supabase
                             .from('restaurant_tables')
@@ -151,7 +135,6 @@ export class RealtimeSync {
                             .eq('id', order.table_id)
                     }
 
-                    // Update waiter stats
                     if (order.waiter_id) {
                         await supabase.rpc('increment_waiter_stats', {
                             p_waiter_id: order.waiter_id,
@@ -160,7 +143,6 @@ export class RealtimeSync {
                         })
                     }
 
-                    // ✅ Delete offline order and items from IndexedDB
                     await db.delete(STORES.ORDERS, order.id)
                     for (const item of items) {
                         await db.delete(STORES.ORDER_ITEMS, item.id)
@@ -168,19 +150,14 @@ export class RealtimeSync {
 
                     synced++
                     this.pendingOperations.delete(order.id)
-
-                    console.log(`✅ Synced order: ${order.id} -> ${newOrder.id}`)
                 } catch (error) {
-                    console.error(`Failed to sync order ${order.id}:`, error)
                     this.pendingOperations.set(order.id, 'failed')
-                    // Remove from map after 5 minutes to allow retry
                     setTimeout(() => this.pendingOperations.delete(order.id), 300000)
                 }
             }
 
             return { success: true, synced }
         } catch (error) {
-            console.error('Orders sync error:', error)
             return { success: false, synced }
         }
     }
@@ -198,8 +175,6 @@ export class RealtimeSync {
             if (pendingShifts.length === 0) {
                 return { success: true, synced: 0 }
             }
-
-            console.log(`📤 Syncing ${pendingShifts.length} attendance records...`)
 
             for (const shift of pendingShifts) {
                 if (this.pendingOperations.has(shift.id)) continue
@@ -220,10 +195,7 @@ export class RealtimeSync {
                     await db.delete(STORES.WAITER_SHIFTS, shift.id)
                     synced++
                     this.pendingOperations.delete(shift.id)
-
-                    console.log(`✅ Synced attendance: ${shift.id}`)
                 } catch (error) {
-                    console.error(`Failed to sync attendance ${shift.id}:`, error)
                     this.pendingOperations.set(shift.id, 'failed')
                     setTimeout(() => this.pendingOperations.delete(shift.id), 300000)
                 }
@@ -231,7 +203,6 @@ export class RealtimeSync {
 
             return { success: true, synced }
         } catch (error) {
-            console.error('Attendance sync error:', error)
             return { success: false, synced }
         }
     }
@@ -267,5 +238,4 @@ export class RealtimeSync {
         }
     }
 }
-
 export const realtimeSync = new RealtimeSync()

@@ -1,4 +1,4 @@
-// src/lib/db/offlineManager.ts - PRODUCTION FIXED VERSION
+// src/lib/db/offlineManager.ts - PRODUCTION CLEAN VERSION
 import { createClient } from '@/lib/supabase/client'
 import { db } from './indexedDB'
 import { STORES } from './schema'
@@ -31,22 +31,19 @@ class OfflineManager {
         this.cleanupOldData()
         this.autoCleanupInterval = setInterval(() => {
             this.cleanupOldData()
-        }, 24 * 60 * 60 * 1000) // Daily cleanup
+        }, 24 * 60 * 60 * 1000)
     }
 
     private initAutoSync() {
-        // ✅ FIX #4: Auto-sync when going back online
         if (typeof navigator !== 'undefined' && navigator.onLine) {
             this.downloadEssentialData()
         }
 
         window.addEventListener('online', () => {
-            console.log('🌐 Online detected - auto-syncing data...')
-            this.downloadEssentialData(true) // Force fresh sync
+            this.downloadEssentialData(true)
             this.syncPendingOrders()
         })
 
-        // Periodic sync every 15 minutes when online
         setInterval(() => {
             if (typeof navigator !== 'undefined' && navigator.onLine) {
                 this.downloadEssentialData()
@@ -75,8 +72,6 @@ class OfflineManager {
                 total: 4,
                 message: 'Downloading menu data...'
             })
-
-            console.log('📥 Syncing essential data...')
 
             const [categoriesResult, itemsResult, tablesResult, waitersResult] =
                 await Promise.allSettled([
@@ -136,7 +131,6 @@ class OfflineManager {
                 })
             }
 
-            // ✅ FIX #2: ALWAYS clear before storing to remove stale data
             if (categoriesData.length > 0) {
                 await db.clear(STORES.MENU_CATEGORIES)
                 await db.bulkPut(STORES.MENU_CATEGORIES, categoriesData)
@@ -173,7 +167,6 @@ class OfflineManager {
                 updateProgress(4)
             }
 
-            // Cache images
             const imageUrls = itemsData
                 .map(i => i.image_url)
                 .filter(Boolean)
@@ -196,13 +189,6 @@ class OfflineManager {
                 waiters: waitersData.length
             })
 
-            console.log('✅ Data synced:', {
-                items: itemsData.length,
-                categories: categoriesData.length,
-                tables: tablesData.length,
-                waiters: waitersData.length
-            })
-
             return {
                 success: true,
                 counts: {
@@ -213,7 +199,6 @@ class OfflineManager {
                 }
             }
         } catch (error: any) {
-            console.error('❌ Sync failed:', error)
             dispatchSyncEvent('sync-error', { error: error.message })
             return { success: false, error: error.message }
         } finally {
@@ -265,13 +250,8 @@ class OfflineManager {
                 }
             }
 
-            if (allDeletes.length > 0) {
-                console.log(`🧹 Cleaned ${allDeletes.length} old orders`)
-            }
-
             return allDeletes.length
         } catch (error) {
-            console.error('Cleanup error:', error)
             return 0
         }
     }
@@ -328,7 +308,7 @@ class OfflineManager {
                         })
                     }
                 } catch (err) {
-                    console.error('Failed to sync order:', order.id, err)
+                    // Silent fail for production
                 }
             }
 
@@ -336,10 +316,8 @@ class OfflineManager {
                 dispatchSyncEvent('sync-complete', { synced: syncedCount })
             }
 
-            console.log(`✅ Synced ${syncedCount}/${pendingOrders.length} orders`)
             return { success: true, synced: syncedCount }
         } catch (error) {
-            console.error('Sync error:', error)
             dispatchSyncEvent('sync-error', { error: 'Failed to sync orders' })
             return { success: false, synced: syncedCount }
         } finally {
@@ -361,7 +339,6 @@ class OfflineManager {
             const data = await db.getAll(store)
             return Array.isArray(data) ? data : []
         } catch (error) {
-            console.error(`Error getting ${store}:`, error)
             return []
         }
     }
@@ -397,7 +374,59 @@ class OfflineManager {
         }
 
         await Promise.all(storesToClear.map(store => db.clear(store)))
-        console.log(`🗑️ Cleared data (menu ${includeMenu ? 'included' : 'preserved'})`)
+    }
+
+    async getStorageInfo() {
+        try {
+            const [categoriesData, itemsData, ordersData] = await Promise.all([
+                db.getAll(STORES.MENU_CATEGORIES),
+                db.getAll(STORES.MENU_ITEMS),
+                db.getAll(STORES.ORDERS)
+            ])
+
+            // Explicitly type the arrays
+            const categories = Array.isArray(categoriesData) ? categoriesData : []
+            const items = Array.isArray(itemsData) ? itemsData : []
+            const orders = Array.isArray(ordersData) ? ordersData : []
+
+            const menuSize = items.length * 2
+            const ordersSize = orders.length * 5
+            const imagesSize = items.filter((i: any) => i.image_url).length * 100
+
+            let used = 0
+            let limit = 0
+
+            if (navigator.storage?.estimate) {
+                const estimate = await navigator.storage.estimate()
+                used = Math.round((estimate.usage || 0) / 1024 / 1024)
+                limit = Math.round((estimate.quota || 0) / 1024 / 1024)
+            }
+
+            return {
+                used,
+                limit,
+                percentage: limit > 0 ? Math.round((used / limit) * 100) : 0,
+                hasData: categories.length > 0 && items.length > 0,
+                ordersCount: orders.length,
+                menuItemsCount: items.length,
+                breakdown: {
+                    menu: menuSize,
+                    orders: ordersSize,
+                    images: imagesSize,
+                    total: menuSize + ordersSize + imagesSize
+                }
+            }
+        } catch (error) {
+            return {
+                used: 0,
+                limit: 0,
+                percentage: 0,
+                hasData: false,
+                ordersCount: 0,
+                menuItemsCount: 0,
+                breakdown: { menu: 0, orders: 0, images: 0, total: 0 }
+            }
+        }
     }
 
     destroy() {

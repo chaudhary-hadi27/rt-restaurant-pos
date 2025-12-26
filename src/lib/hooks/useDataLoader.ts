@@ -1,4 +1,4 @@
-// src/lib/hooks/useDataLoader.ts - FIXED TEMPLATE LITERALS
+// src/lib/hooks/useDataLoader.ts - FIXED
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -26,7 +26,6 @@ export function useDataLoader<T = any>(options: LoaderOptions<T>) {
                 .from(options.table)
                 .select(options.select || '*')
 
-            // Apply filters
             if (options.filter) {
                 Object.entries(options.filter).forEach(([key, value]) => {
                     if (value !== undefined && value !== null) {
@@ -35,14 +34,12 @@ export function useDataLoader<T = any>(options: LoaderOptions<T>) {
                 })
             }
 
-            // Apply ordering
             if (options.order) {
                 query = query.order(options.order.column, {
                     ascending: options.order.ascending ?? true
                 })
             }
 
-            // Apply limit
             if (options.limit) {
                 query = query.limit(options.limit)
             }
@@ -51,7 +48,6 @@ export function useDataLoader<T = any>(options: LoaderOptions<T>) {
 
             if (err) throw err
 
-            // ✅ FIXED: Safe data transformation with null checks
             const finalData = options.transform && result
                 ? options.transform(result)
                 : (result as T[] || [])
@@ -60,8 +56,8 @@ export function useDataLoader<T = any>(options: LoaderOptions<T>) {
         } catch (err: any) {
             const errorMsg = err.message || 'Failed to load data'
             setError(errorMsg)
-            console.error(`Error loading ${options.table}:`, err) // ✅ FIXED: Proper template string
-            setData([]) // ✅ Set empty array on error
+            console.error(`Error loading ${options.table}:`, err)
+            setData([])
         } finally {
             setLoading(false)
         }
@@ -74,7 +70,6 @@ export function useDataLoader<T = any>(options: LoaderOptions<T>) {
     return { data, loading, error, refresh: load }
 }
 
-// ✅ FIXED: Safe transformation for inventory items
 export function useInventoryItems(filter?: Record<string, any>) {
     return useDataLoader({
         table: 'inventory_items',
@@ -83,13 +78,11 @@ export function useInventoryItems(filter?: Record<string, any>) {
         order: { column: 'created_at', ascending: false },
         transform: (items) => items.map(item => ({
             ...item,
-            // ✅ Safe calculation with default values
             total_value: (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0)
         }))
     })
 }
 
-// Other specialized loaders remain the same
 export function useOrders(filter?: Record<string, any>) {
     return useDataLoader({
         table: 'orders',
