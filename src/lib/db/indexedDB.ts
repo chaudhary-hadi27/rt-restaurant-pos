@@ -1,4 +1,4 @@
-// src/lib/db/indexedDB.ts - FIXED CONNECTION MANAGEMENT
+// src/lib/db/indexedDB.ts - FIXED WITH WAITER_SHIFTS
 import { DB_NAME, DB_VERSION, STORES } from './schema'
 
 class IndexedDBManager {
@@ -7,12 +7,10 @@ class IndexedDBManager {
     private isInitializing = false
 
     async init(): Promise<IDBDatabase> {
-        // Return existing connection
         if (this.db && !this.isInitializing) {
             return this.db
         }
 
-        // Return existing init promise if already initializing
         if (this.initPromise) {
             return this.initPromise
         }
@@ -32,7 +30,6 @@ class IndexedDBManager {
                 this.db = request.result
                 this.isInitializing = false
 
-                // Handle unexpected close
                 this.db.onclose = () => {
                     console.warn('⚠️ IndexedDB closed unexpectedly')
                     this.db = null
@@ -67,6 +64,14 @@ class IndexedDBManager {
                 if (!db.objectStoreNames.contains(STORES.ORDER_ITEMS)) {
                     const store = db.createObjectStore(STORES.ORDER_ITEMS, { keyPath: 'id' })
                     store.createIndex('order_id', 'order_id')
+                }
+
+                // ✅ NEW: Waiter Shifts
+                if (!db.objectStoreNames.contains(STORES.WAITER_SHIFTS)) {
+                    const store = db.createObjectStore(STORES.WAITER_SHIFTS, { keyPath: 'id' })
+                    store.createIndex('waiter_id', 'waiter_id')
+                    store.createIndex('synced', 'synced')
+                    store.createIndex('created_at', 'created_at')
                 }
 
                 // Sync Queue
@@ -191,7 +196,6 @@ class IndexedDBManager {
         }
     }
 
-    // Graceful close
     close() {
         if (this.db) {
             this.db.close()
@@ -203,7 +207,6 @@ class IndexedDBManager {
 
 export const db = new IndexedDBManager()
 
-// Cleanup on page unload
 if (typeof window !== 'undefined') {
     window.addEventListener('beforeunload', () => {
         db.close()

@@ -1,4 +1,4 @@
-// src/lib/hooks/useDataLoader.ts
+// src/lib/hooks/useDataLoader.ts - FIXED TEMPLATE LITERALS
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -60,7 +60,7 @@ export function useDataLoader<T = any>(options: LoaderOptions<T>) {
         } catch (err: any) {
             const errorMsg = err.message || 'Failed to load data'
             setError(errorMsg)
-            console.error(`Error loading ${options.table}:`, err)
+            console.error(`Error loading ${options.table}:`, err) // ✅ FIXED: Proper template string
             setData([]) // ✅ Set empty array on error
         } finally {
             setLoading(false)

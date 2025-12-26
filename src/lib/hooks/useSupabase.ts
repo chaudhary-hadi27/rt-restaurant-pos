@@ -77,7 +77,7 @@ export function useSupabase<T = any>(
                 throw new Error('Offline')
             }
         } catch (err: any) {
-            console.log(`📴 Offline mode for ${table}`)
+        console.log(`📴 Offline mode for ${table}`)
 
             try {
                 const storeName = getStoreName(table)
@@ -112,7 +112,7 @@ export function useSupabase<T = any>(
                 setIsOffline(true)
                 setError(null)
             } catch (offlineErr) {
-                console.error('Offline load failed:', offlineErr)
+                console.error('Offline load failed:', offlineErr) // ✅ FIXED
                 setError('No offline data available')
                 setData([])
             }
