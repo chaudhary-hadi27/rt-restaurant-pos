@@ -99,7 +99,7 @@ export default function UnifiedSidebar({ onCommandOpen }: { onCommandOpen?: () =
                     onClick={() => setOpen(false)}
                 >
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-lg">
-                        RT
+                        AT
                     </div>
                 </Link>
 
