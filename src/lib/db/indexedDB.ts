@@ -1,16 +1,45 @@
+// src/lib/db/indexedDB.ts - FIXED CONNECTION MANAGEMENT
 import { DB_NAME, DB_VERSION, STORES } from './schema'
 
 class IndexedDBManager {
     private db: IDBDatabase | null = null
+    private initPromise: Promise<IDBDatabase> | null = null
+    private isInitializing = false
 
-    async init() {
-        return new Promise<IDBDatabase>((resolve, reject) => {
+    async init(): Promise<IDBDatabase> {
+        // Return existing connection
+        if (this.db && !this.isInitializing) {
+            return this.db
+        }
+
+        // Return existing init promise if already initializing
+        if (this.initPromise) {
+            return this.initPromise
+        }
+
+        this.isInitializing = true
+
+        this.initPromise = new Promise<IDBDatabase>((resolve, reject) => {
             const request = indexedDB.open(DB_NAME, DB_VERSION)
 
-            request.onerror = () => reject(request.error)
+            request.onerror = () => {
+                this.isInitializing = false
+                this.initPromise = null
+                reject(request.error)
+            }
+
             request.onsuccess = () => {
                 this.db = request.result
-                resolve(request.result)
+                this.isInitializing = false
+
+                // Handle unexpected close
+                this.db.onclose = () => {
+                    console.warn('⚠️ IndexedDB closed unexpectedly')
+                    this.db = null
+                    this.initPromise = null
+                }
+
+                resolve(this.db)
             }
 
             request.onupgradeneeded = (event) => {
@@ -57,70 +86,126 @@ class IndexedDBManager {
                 }
             }
         })
+
+        return this.initPromise
     }
 
     async get(store: string, key: string) {
-        const db = this.db || await this.init()
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(store, 'readonly')
-            const request = tx.objectStore(store).get(key)
-            request.onsuccess = () => resolve(request.result)
-            request.onerror = () => reject(request.error)
-        })
+        try {
+            const db = await this.init()
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(store, 'readonly')
+                const request = tx.objectStore(store).get(key)
+                request.onsuccess = () => resolve(request.result)
+                request.onerror = () => reject(request.error)
+            })
+        } catch (error) {
+            console.error(`Get failed for ${store}:`, error)
+            return null
+        }
     }
 
     async getAll(store: string) {
-        const db = this.db || await this.init()
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(store, 'readonly')
-            const request = tx.objectStore(store).getAll()
-            request.onsuccess = () => resolve(request.result)
-            request.onerror = () => reject(request.error)
-        })
+        try {
+            const db = await this.init()
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(store, 'readonly')
+                const request = tx.objectStore(store).getAll()
+                request.onsuccess = () => resolve(request.result || [])
+                request.onerror = () => reject(request.error)
+            })
+        } catch (error) {
+            console.error(`GetAll failed for ${store}:`, error)
+            return []
+        }
     }
 
     async put(store: string, data: any) {
-        const db = this.db || await this.init()
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(store, 'readwrite')
-            const request = tx.objectStore(store).put(data)
-            request.onsuccess = () => resolve(request.result)
-            request.onerror = () => reject(request.error)
-        })
+        try {
+            const db = await this.init()
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(store, 'readwrite')
+                const request = tx.objectStore(store).put(data)
+                request.onsuccess = () => resolve(request.result)
+                request.onerror = () => reject(request.error)
+            })
+        } catch (error) {
+            console.error(`Put failed for ${store}:`, error)
+            throw error
+        }
     }
 
     async delete(store: string, key: string) {
-        const db = this.db || await this.init()
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(store, 'readwrite')
-            const request = tx.objectStore(store).delete(key)
-            request.onsuccess = () => resolve(request.result)
-            request.onerror = () => reject(request.error)
-        })
+        try {
+            const db = await this.init()
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(store, 'readwrite')
+                const request = tx.objectStore(store).delete(key)
+                request.onsuccess = () => resolve(request.result)
+                request.onerror = () => reject(request.error)
+            })
+        } catch (error) {
+            console.error(`Delete failed for ${store}:`, error)
+            throw error
+        }
     }
 
     async clear(store: string) {
-        const db = this.db || await this.init()
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(store, 'readwrite')
-            const request = tx.objectStore(store).clear()
-            request.onsuccess = () => resolve(request.result)
-            request.onerror = () => reject(request.error)
-        })
+        try {
+            const db = await this.init()
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(store, 'readwrite')
+                const request = tx.objectStore(store).clear()
+                request.onsuccess = () => resolve(request.result)
+                request.onerror = () => reject(request.error)
+            })
+        } catch (error) {
+            console.error(`Clear failed for ${store}:`, error)
+            throw error
+        }
     }
 
     async bulkPut(store: string, items: any[]) {
-        const db = this.db || await this.init()
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(store, 'readwrite')
-            const objectStore = tx.objectStore(store)
+        if (!Array.isArray(items) || items.length === 0) return
 
-            items.forEach(item => objectStore.put(item))
+        try {
+            const db = await this.init()
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(store, 'readwrite')
+                const objectStore = tx.objectStore(store)
 
-            tx.oncomplete = () => resolve(true)
-            tx.onerror = () => reject(tx.error)
-        })
+                items.forEach(item => {
+                    try {
+                        objectStore.put(item)
+                    } catch (err) {
+                        console.warn(`Failed to put item:`, err)
+                    }
+                })
+
+                tx.oncomplete = () => resolve(true)
+                tx.onerror = () => reject(tx.error)
+            })
+        } catch (error) {
+            console.error(`BulkPut failed for ${store}:`, error)
+            throw error
+        }
+    }
+
+    // Graceful close
+    close() {
+        if (this.db) {
+            this.db.close()
+            this.db = null
+            this.initPromise = null
+        }
     }
 }
 
 export const db = new IndexedDBManager()
+
+// Cleanup on page unload
+if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', () => {
+        db.close()
+    })
+}

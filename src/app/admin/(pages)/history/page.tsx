@@ -40,7 +40,7 @@ export default function HistoryPage() {
 
         try {
             if (category === 'recent') {
-                const { data: orders } = await supabase
+                const { data: orders, error } = await supabase
                     .from('orders')
                     .select('*, waiters(name), restaurant_tables(table_number), order_items(quantity, total_price, menu_items(name))')
                     .gte('created_at', startDate.toISOString())
@@ -54,31 +54,30 @@ export default function HistoryPage() {
                 const totalRevenue = completed.reduce((s, o) => s + (o.total_amount || 0), 0)
                 const avgOrder = completed.length > 0 ? totalRevenue / completed.length : 0
 
-                // ✅ FIX: Pass icon as JSX element, not component reference
                 setStats([
                     {
                         label: 'Total Orders',
                         value: safeOrders.length,
                         color: '#3b82f6',
-                        icon: <ShoppingCart className="w-6 h-6" /> // ✅ Rendered element
+                        icon: <ShoppingCart className="w-6 h-6" />
                     },
                     {
                         label: 'Completed',
                         value: completed.length,
                         color: '#10b981',
-                        icon: <TrendingUp className="w-6 h-6" /> // ✅ Rendered element
+                        icon: <TrendingUp className="w-6 h-6" />
                     },
                     {
                         label: 'Total Revenue',
                         value: `PKR ${totalRevenue.toLocaleString()}`,
                         color: '#f59e0b',
-                        icon: <DollarSign className="w-6 h-6" /> // ✅ Rendered element
+                        icon: <DollarSign className="w-6 h-6" />
                     },
                     {
                         label: 'Avg Order',
                         value: `PKR ${Math.round(avgOrder)}`,
                         color: '#8b5cf6',
-                        icon: <TrendingUp className="w-6 h-6" /> // ✅ Rendered element
+                        icon: <TrendingUp className="w-6 h-6" />
                     }
                 ])
             } else if (category === 'waiters') {
@@ -144,6 +143,7 @@ export default function HistoryPage() {
         } catch (error) {
             console.error('Error loading data:', error)
             setData([])
+            setStats([])
         }
         setLoading(false)
     }
@@ -162,34 +162,78 @@ export default function HistoryPage() {
 
     const columns: any = {
         recent: [
-            { key: 'order', label: 'Order', render: (r: any) => (
-                    <div>
-                        <p className="font-medium text-sm">#{r.id.slice(0, 8).toUpperCase()}</p>
-                        <p className="text-xs text-[var(--muted)]">{new Date(r.created_at).toLocaleString()}</p>
-                    </div>
-                )},
-            { key: 'waiter', label: 'Waiter', mobileHidden: true, render: (r: any) => r.waiters?.name || 'N/A' },
+            {
+                key: 'order',
+                label: 'Order',
+                render: (r: any) => {
+                    // ✅ FIX: Safe null check for r.id
+                    const orderId = r?.id ? String(r.id) : 'N/A'
+                    const orderNumber = orderId !== 'N/A' ? orderId.slice(0, 8).toUpperCase() : 'N/A'
+
+                    return (
+                        <div>
+                            <p className="font-medium text-sm">#{orderNumber}</p>
+                            <p className="text-xs text-[var(--muted)]">
+                                {r?.created_at ? new Date(r.created_at).toLocaleString() : 'Unknown'}
+                            </p>
+                        </div>
+                    )
+                }
+            },
+            { key: 'waiter', label: 'Waiter', mobileHidden: true, render: (r: any) => r?.waiters?.name || 'N/A' },
             { key: 'items', label: 'Items', render: (r: any) => {
-                    const items = Array.isArray(r.order_items) ? r.order_items : []
+                    const items = Array.isArray(r?.order_items) ? r.order_items : []
                     return items.length
-                }},
-            { key: 'amount', label: 'Amount', align: 'right' as const, render: (r: any) => <span className="font-bold text-blue-600">PKR {r.total_amount.toLocaleString()}</span> }
+                }
+            },
+            {
+                key: 'amount',
+                label: 'Amount',
+                align: 'right' as const,
+                render: (r: any) => (
+                    <span className="font-bold text-blue-600">
+                        PKR {(r?.total_amount || 0).toLocaleString()}
+                    </span>
+                )
+            }
         ],
         waiters: [
             { key: 'waiter', label: 'Waiter', render: (r: any) => (
                     <div className="flex items-center gap-2">
-                        {r.profile_pic ? <img src={r.profile_pic} alt="" className="w-8 h-8 rounded-full" /> :
-                            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">{r.waiter_name?.[0] || '?'}</div>}
-                        <span>{r.waiter_name || 'N/A'}</span>
+                        {r?.profile_pic ? <img src={r.profile_pic} alt="" className="w-8 h-8 rounded-full" /> :
+                            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">
+                                {r?.waiter_name?.[0] || '?'}
+                            </div>
+                        }
+                        <span>{r?.waiter_name || 'N/A'}</span>
                     </div>
-                )},
-            { key: 'orders', label: 'Orders', render: (r: any) => r.total_orders || 0 },
-            { key: 'revenue', label: 'Revenue', align: 'right' as const, render: (r: any) => <span className="font-bold text-green-600">PKR {(r.total_revenue || 0).toLocaleString()}</span> }
+                )
+            },
+            { key: 'orders', label: 'Orders', render: (r: any) => r?.total_orders || 0 },
+            {
+                key: 'revenue',
+                label: 'Revenue',
+                align: 'right' as const,
+                render: (r: any) => (
+                    <span className="font-bold text-green-600">
+                        PKR {(r?.total_revenue || 0).toLocaleString()}
+                    </span>
+                )
+            }
         ],
         menu: [
-            { key: 'item', label: 'Item', render: (r: any) => r.item_name || 'N/A' },
-            { key: 'quantity', label: 'Sold', render: (r: any) => r.total_quantity || 0 },
-            { key: 'revenue', label: 'Revenue', align: 'right' as const, render: (r: any) => <span className="font-bold text-blue-600">PKR {(r.total_revenue || 0).toLocaleString()}</span> }
+            { key: 'item', label: 'Item', render: (r: any) => r?.item_name || 'N/A' },
+            { key: 'quantity', label: 'Sold', render: (r: any) => r?.total_quantity || 0 },
+            {
+                key: 'revenue',
+                label: 'Revenue',
+                align: 'right' as const,
+                render: (r: any) => (
+                    <span className="font-bold text-blue-600">
+                        PKR {(r?.total_revenue || 0).toLocaleString()}
+                    </span>
+                )
+            }
         ]
     }
 
@@ -204,8 +248,7 @@ export default function HistoryPage() {
             <>
                 <AutoSidebar items={sidebarItems} title="Reports" />
 
-                {/* ✅ FIX: Remove left margin when sidebar is present */}
-                <div className="lg:ml-64"> {/* Changed from lg:ml-64 to match AutoSidebar width */}
+                <div className="lg:ml-64">
                     <PageHeader
                         title="History & Reports"
                         subtitle="Full online history • Offline: Last 7 days cached"
@@ -221,7 +264,10 @@ export default function HistoryPage() {
                                     <option value="year">Last Year</option>
                                     <option value="all">All Time</option>
                                 </select>
-                                <button onClick={exportCSV} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 text-sm active:scale-95">
+                                <button
+                                    onClick={exportCSV}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 text-sm active:scale-95"
+                                >
                                     <Download className="w-4 h-4" />
                                     Export
                                 </button>
@@ -230,7 +276,6 @@ export default function HistoryPage() {
                     />
 
                     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-                        {/* Info Banner */}
                         <div className="p-4 bg-blue-600/10 border border-blue-600/30 rounded-lg">
                             <div className="flex items-center gap-2">
                                 <Calendar className="w-5 h-5 text-blue-600" />

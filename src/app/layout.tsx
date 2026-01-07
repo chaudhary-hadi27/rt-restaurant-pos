@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Geist } from "next/font/google"
 import "./globals.css"
 import ThemeInitializer from "@/components/ThemeInitializer"
@@ -7,11 +7,11 @@ import CommandPaletteWrapper from '@/components/CommandPaletteWrapper'
 import InstallPrompt from '@/components/InstallPrompt'
 import OfflineIndicator from '@/components/ui/OfflineIndicator'
 import OfflineInitializer from '@/components/OfflineInitializer'
+import SyncProgressIndicator from '@/components/ui/SyncProgressIndicator'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 const geist = Geist({ variable: "--font-geist", subsets: ["latin"] })
 
-// ✅ FIX: Remove manifest from metadata
 export const metadata: Metadata = {
     title: "RT Restaurant - Management System",
     description: "Professional restaurant management with offline support",
@@ -22,11 +22,21 @@ export const metadata: Metadata = {
     }
 }
 
+export const viewport: Viewport = {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+    themeColor: [
+        { media: '(prefers-color-scheme: light)', color: '#3b82f6' },
+        { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' }
+    ]
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
         <html lang="en" suppressHydrationWarning>
         <head>
-            {/* ✅ FIXED: Separate manifest loading */}
             <script dangerouslySetInnerHTML={{
                 __html: `
             (function() {
@@ -36,8 +46,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 link.rel = 'manifest';
                 link.href = manifest;
                 document.head.appendChild(link);
-                
-                // Store context for later use
                 window.__APP_CONTEXT__ = isAdmin ? 'admin' : 'public';
             })();
         `
@@ -51,14 +59,32 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <meta name="mobile-web-app-capable" content="yes" />
             <meta name="apple-mobile-web-app-capable" content="yes" />
 
-            {/* Service Worker Registration */}
+            {/* ✅ Enhanced Service Worker Registration */}
             <script dangerouslySetInnerHTML={{
                 __html: `
                     if('serviceWorker' in navigator) {
-                        window.addEventListener('load', function() {
-                            navigator.serviceWorker.register('/sw.js')
-                                .then(function(reg) { console.log('✅ SW registered'); })
-                                .catch(function(err) { console.log('❌ SW failed:', err); });
+                        window.addEventListener('load', async function() {
+                            try {
+                                const reg = await navigator.serviceWorker.register('/sw.js');
+                                console.log('✅ Service Worker registered');
+                                
+                                // Auto-update on new version
+                                reg.addEventListener('updatefound', () => {
+                                    const newWorker = reg.installing;
+                                    if (newWorker) {
+                                        newWorker.addEventListener('statechange', () => {
+                                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                                if (confirm('🔄 New version available! Update now?')) {
+                                                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                                                    window.location.reload();
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+                            } catch (err) {
+                                console.error('❌ Service Worker failed:', err);
+                            }
                         });
                     }
                 `
@@ -70,6 +96,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <OfflineInitializer />
             <ToastContainer />
             <OfflineIndicator />
+            <SyncProgressIndicator />
             <CommandPaletteWrapper />
             <InstallPrompt />
             <main className="lg:ml-16 min-h-screen">{children}</main>

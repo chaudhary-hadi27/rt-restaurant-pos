@@ -1,23 +1,18 @@
-// src/lib/db/offlineManager.ts - FIXED VERSION
+// src/lib/db/offlineManager.ts - FIXED OFFLINE MANAGER
 import { createClient } from '@/lib/supabase/client'
 import { db } from './indexedDB'
 import { STORES } from './schema'
+
+const dispatchSyncEvent = (type: string, detail: any) => {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new CustomEvent(type, { detail }))
+}
 
 interface DownloadResult {
     success: boolean
     message?: string
     counts?: { categories: number; items: number; tables: number; waiters: number }
     error?: string
-}
-
-interface StorageInfo {
-    used: number
-    limit: number
-    percentage: number
-    hasData: boolean
-    ordersCount: number
-    menuItemsCount: number
-    breakdown: { menu: number; orders: number; images: number; total: number }
 }
 
 class OfflineManager {
@@ -32,17 +27,15 @@ class OfflineManager {
         }
     }
 
-    // ✅ AUTO-CLEANUP: Runs every 6 hours
     private initAutoCleanup() {
         this.cleanupOldData()
         this.autoCleanupInterval = setInterval(() => {
             this.cleanupOldData()
-        }, 6 * 60 * 60 * 1000)
+        }, 24 * 60 * 60 * 1000) // Daily cleanup
     }
 
-    // ✅ AUTO-SYNC: When online, sync every 15 minutes
     private initAutoSync() {
-        if (navigator.onLine) {
+        if (typeof navigator !== 'undefined' && navigator.onLine) {
             this.downloadEssentialData()
         }
 
@@ -51,16 +44,18 @@ class OfflineManager {
             this.syncPendingOrders()
         })
 
+        // Sync every 15 minutes when online
         setInterval(() => {
-            if (navigator.onLine) {
+            if (typeof navigator !== 'undefined' && navigator.onLine) {
                 this.downloadEssentialData()
             }
         }, 15 * 60 * 1000)
     }
 
-    // ✅ DOWNLOAD ESSENTIAL DATA - PUBLIC METHOD
     async downloadEssentialData(force = false): Promise<DownloadResult> {
-        if (this.isDownloading) return { success: false, message: 'Already downloading...' }
+        if (this.isDownloading) {
+            return { success: false, message: 'Already downloading...' }
+        }
 
         const lastSync = localStorage.getItem('menu_last_sync')
         const oneHour = 60 * 60 * 1000
@@ -73,26 +68,58 @@ class OfflineManager {
         const supabase = createClient()
 
         try {
-            console.log('📥 Auto-syncing essential data...')
+            dispatchSyncEvent('sync-start', {
+                direction: 'download',
+                total: 4,
+                message: 'Downloading menu data...'
+            })
 
-            const [categories, items, tables, waiters] = await Promise.allSettled([
+            console.log('📥 Syncing essential data...')
+
+            // ✅ FIX: Fetch data with proper error handling
+            const [categoriesResult, itemsResult, tablesResult, waitersResult] = await Promise.allSettled([
                 supabase.from('menu_categories').select('*').eq('is_active', true).order('display_order'),
                 supabase.from('menu_items').select('*').eq('is_available', true).order('name'),
                 supabase.from('restaurant_tables').select('*').order('table_number'),
                 supabase.from('waiters').select('*').eq('is_active', true).order('name')
             ])
 
-            const categoriesData = categories.status === 'fulfilled' ? categories.value.data || [] : []
-            const itemsData = items.status === 'fulfilled' ? items.value.data || [] : []
-            const tablesData = tables.status === 'fulfilled' ? tables.value.data || [] : []
-            const waitersData = waiters.status === 'fulfilled' ? waiters.value.data || [] : []
+            // ✅ FIX: Safe data extraction
+            const categoriesData = categoriesResult.status === 'fulfilled' && Array.isArray(categoriesResult.value.data)
+                ? categoriesResult.value.data
+                : []
 
+            const itemsData = itemsResult.status === 'fulfilled' && Array.isArray(itemsResult.value.data)
+                ? itemsResult.value.data
+                : []
+
+            const tablesData = tablesResult.status === 'fulfilled' && Array.isArray(tablesResult.value.data)
+                ? tablesResult.value.data
+                : []
+
+            const waitersData = waitersResult.status === 'fulfilled' && Array.isArray(waitersResult.value.data)
+                ? waitersResult.value.data
+                : []
+
+            let progress = 0
+            const updateProgress = (current: number) => {
+                progress = Math.round((current / 4) * 100)
+                dispatchSyncEvent('sync-progress', {
+                    progress,
+                    current,
+                    total: 4,
+                    message: `Downloaded ${current}/4 datasets...`
+                })
+            }
+
+            // ✅ FIX: Store with validation
             if (categoriesData.length > 0) {
                 await db.bulkPut(STORES.MENU_CATEGORIES, categoriesData)
                 await db.put(STORES.SETTINGS, {
                     key: 'categories_version',
                     value: Date.now()
                 })
+                updateProgress(1)
             }
 
             if (itemsData.length > 0) {
@@ -101,16 +128,26 @@ class OfflineManager {
                     key: 'menu_version',
                     value: Date.now()
                 })
+                updateProgress(2)
             }
 
             if (tablesData.length > 0) {
-                await db.put(STORES.SETTINGS, { key: 'tables', value: tablesData })
+                await db.put(STORES.SETTINGS, {
+                    key: 'tables',
+                    value: tablesData
+                })
+                updateProgress(3)
             }
 
             if (waitersData.length > 0) {
-                await db.put(STORES.SETTINGS, { key: 'waiters', value: waitersData })
+                await db.put(STORES.SETTINGS, {
+                    key: 'waiters',
+                    value: waitersData
+                })
+                updateProgress(4)
             }
 
+            // Cache images
             const imageUrls = itemsData
                 .map(i => i.image_url)
                 .filter(Boolean)
@@ -126,9 +163,18 @@ class OfflineManager {
             localStorage.setItem('menu_last_sync', Date.now().toString())
             localStorage.setItem('offline_ready', 'true')
 
+            dispatchSyncEvent('sync-complete', {
+                categories: categoriesData.length,
+                items: itemsData.length,
+                tables: tablesData.length,
+                waiters: waitersData.length
+            })
+
             console.log('✅ Data synced:', {
                 items: itemsData.length,
-                categories: categoriesData.length
+                categories: categoriesData.length,
+                tables: tablesData.length,
+                waiters: waitersData.length
             })
 
             return {
@@ -142,22 +188,28 @@ class OfflineManager {
             }
         } catch (error: any) {
             console.error('❌ Sync failed:', error)
+            dispatchSyncEvent('sync-error', { error: error.message })
             return { success: false, error: error.message }
         } finally {
             this.isDownloading = false
         }
     }
 
-    // ✅ OFFLINE CLEANUP ONLY: 7-day cache + max 200 orders
     async cleanupOldData(): Promise<number> {
         try {
             const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000)
-            const orders = await db.getAll(STORES.ORDERS) as any[]
+            const ordersData = await db.getAll(STORES.ORDERS)
 
-            if (!Array.isArray(orders) || orders.length === 0) {
-                console.log('📦 No offline orders to cleanup')
+            // ✅ FIX: Validate array before operations
+            if (!Array.isArray(ordersData) || ordersData.length === 0) {
                 return 0
             }
+
+            const orders = ordersData as Array<{
+                id: string
+                created_at: string
+                status: string
+            }>
 
             const oldOrders = orders.filter(o => {
                 const orderTime = new Date(o.created_at).getTime()
@@ -174,8 +226,9 @@ class OfflineManager {
             for (const order of allDeletes) {
                 await db.delete(STORES.ORDERS, order.id)
 
-                const items = await db.getAll(STORES.ORDER_ITEMS) as any[]
-                if (Array.isArray(items)) {
+                const itemsData = await db.getAll(STORES.ORDER_ITEMS)
+                if (Array.isArray(itemsData)) {
+                    const items = itemsData as Array<{ id: string; order_id: string }>
                     const orderItems = items.filter(i => i.order_id === order.id)
                     for (const item of orderItems) {
                         await db.delete(STORES.ORDER_ITEMS, item.id)
@@ -184,56 +237,18 @@ class OfflineManager {
             }
 
             if (allDeletes.length > 0) {
-                console.log(`🧹 Cleaned ${allDeletes.length} old orders from OFFLINE cache`)
+                console.log(`🧹 Cleaned ${allDeletes.length} old orders`)
             }
 
             return allDeletes.length
         } catch (error) {
-            console.error('Offline cleanup error:', error)
+            console.error('Cleanup error:', error)
             return 0
         }
     }
 
-    // ✅ DELETE OLD HISTORY - PUBLIC METHOD (for admin settings)
-    async deleteOldHistory(type: 'monthly' | 'yearly'): Promise<{ success: boolean; deleted: number }> {
-        try {
-            const days = type === 'monthly' ? 30 : 365
-            const cutoffDate = Date.now() - (days * 24 * 60 * 60 * 1000)
-
-            const orders = await db.getAll(STORES.ORDERS) as any[]
-
-            if (!Array.isArray(orders) || orders.length === 0) {
-                return { success: true, deleted: 0 }
-            }
-
-            const oldOrders = orders.filter(o => {
-                const orderTime = new Date(o.created_at).getTime()
-                return orderTime < cutoffDate && o.status === 'completed'
-            })
-
-            for (const order of oldOrders) {
-                await db.delete(STORES.ORDERS, order.id)
-
-                const items = await db.getAll(STORES.ORDER_ITEMS) as any[]
-                if (Array.isArray(items)) {
-                    const orderItems = items.filter(i => i.order_id === order.id)
-                    for (const item of orderItems) {
-                        await db.delete(STORES.ORDER_ITEMS, item.id)
-                    }
-                }
-            }
-
-            console.log(`🗑️ Deleted ${oldOrders.length} orders older than ${type === 'monthly' ? '30' : '365'} days`)
-            return { success: true, deleted: oldOrders.length }
-        } catch (error: any) {
-            console.error('Delete history error:', error)
-            return { success: false, deleted: 0 }
-        }
-    }
-
-    // ✅ AUTO-SYNC PENDING ORDERS
     async syncPendingOrders(): Promise<{ success: boolean; synced: number }> {
-        if (this.syncInProgress || !navigator.onLine) {
+        if (this.syncInProgress || typeof navigator === 'undefined' || !navigator.onLine) {
             return { success: false, synced: 0 }
         }
 
@@ -241,18 +256,27 @@ class OfflineManager {
         let syncedCount = 0
 
         try {
-            const orders = await db.getAll(STORES.ORDERS) as any[]
+            const ordersData = await db.getAll(STORES.ORDERS)
 
-            if (!Array.isArray(orders)) {
-                console.warn('⚠️ Orders is not an array')
+            if (!Array.isArray(ordersData)) {
                 return { success: false, synced: 0 }
             }
 
+            const orders = ordersData as Array<any>
             const pendingOrders = orders.filter(o => !o.synced)
+
+            if (pendingOrders.length > 0) {
+                dispatchSyncEvent('sync-start', {
+                    direction: 'upload',
+                    total: pendingOrders.length,
+                    message: 'Uploading pending orders...'
+                })
+            }
 
             const supabase = createClient()
 
-            for (const order of pendingOrders) {
+            for (let i = 0; i < pendingOrders.length; i++) {
+                const order = pendingOrders[i]
                 try {
                     const { error } = await supabase
                         .from('orders')
@@ -261,29 +285,47 @@ class OfflineManager {
                     if (!error) {
                         await db.put(STORES.ORDERS, { ...order, synced: true })
                         syncedCount++
+
+                        const progress = Math.round(((i + 1) / pendingOrders.length) * 100)
+                        dispatchSyncEvent('sync-progress', {
+                            progress,
+                            current: i + 1,
+                            total: pendingOrders.length,
+                            message: `Uploaded ${i + 1}/${pendingOrders.length} orders`
+                        })
                     }
                 } catch (err) {
                     console.error('Failed to sync order:', order.id, err)
                 }
             }
 
-            console.log(`✅ Auto-synced ${syncedCount}/${pendingOrders.length} orders`)
+            if (pendingOrders.length > 0) {
+                dispatchSyncEvent('sync-complete', { synced: syncedCount })
+            }
+
+            console.log(`✅ Synced ${syncedCount}/${pendingOrders.length} orders`)
             return { success: true, synced: syncedCount }
         } catch (error) {
             console.error('Sync error:', error)
+            dispatchSyncEvent('sync-error', { error: 'Failed to sync orders' })
             return { success: false, synced: syncedCount }
         } finally {
             this.syncInProgress = false
         }
     }
 
-    // ✅ SAFE DATA RETRIEVAL
     async getOfflineData(store: string): Promise<any[]> {
         try {
             if (store === 'restaurant_tables' || store === 'waiters') {
-                const data = await db.get(STORES.SETTINGS, store) as { value?: any[] } | undefined
-                return Array.isArray(data?.value) ? data.value : []
+                const data = await db.get(STORES.SETTINGS, store)
+                // ✅ FIX: Validate data structure
+                if (data && typeof data === 'object' && 'value' in data) {
+                    const value = (data as any).value
+                    return Array.isArray(value) ? value : []
+                }
+                return []
             }
+
             const data = await db.getAll(store)
             return Array.isArray(data) ? data : []
         } catch (error) {
@@ -292,25 +334,24 @@ class OfflineManager {
         }
     }
 
-    // ✅ STORAGE INFO
-    async getStorageInfo(): Promise<StorageInfo> {
+    async getStorageInfo(): Promise<any> {
         try {
-            const [orders, menuItems, menuVersion] = await Promise.all([
-                db.getAll(STORES.ORDERS) as Promise<any[]>,
-                db.getAll(STORES.MENU_ITEMS) as Promise<any[]>,
+            const [ordersData, menuItemsData, menuVersion] = await Promise.all([
+                db.getAll(STORES.ORDERS),
+                db.getAll(STORES.MENU_ITEMS),
                 db.get(STORES.SETTINGS, 'menu_version')
             ])
 
-            const safeOrders = Array.isArray(orders) ? orders : []
-            const safeMenuItems = Array.isArray(menuItems) ? menuItems : []
+            const orders = Array.isArray(ordersData) ? ordersData : []
+            const menuItems = Array.isArray(menuItemsData) ? menuItemsData : []
 
-            const menuSize = safeMenuItems.length * 2
-            const ordersSize = safeOrders.length * 5
-            const imagesSize = safeMenuItems.filter(i => i.image_url).length * 100
+            const menuSize = menuItems.length * 2
+            const ordersSize = orders.length * 5
+            const imagesSize = menuItems.filter(i => i.image_url).length * 100
 
-            const estimate = await navigator.storage?.estimate?.() || { usage: 0, quota: 0 }
-            const used = Math.round((estimate.usage || 0) / 1024 / 1024)
-            const limit = Math.round((estimate.quota || 0) / 1024 / 1024)
+            const estimate = await navigator.storage?.estimate() || { usage: 0, quota: 0 }
+            const used = Math.round((estimate.usage || 0) / (1024 * 1024 * 1024))
+            const limit = Math.round((estimate.quota || 0) / (1024 * 1024 * 1024))
 
             const hasData = await this.isOfflineReady()
             const dataAge = menuVersion ? Date.now() - (menuVersion as any).value : Infinity
@@ -321,8 +362,8 @@ class OfflineManager {
                 limit,
                 percentage: limit > 0 ? Math.round((used / limit) * 100) : 0,
                 hasData: hasData && isFresh,
-                ordersCount: safeOrders.length,
-                menuItemsCount: safeMenuItems.length,
+                ordersCount: orders.length,
+                menuItemsCount: menuItems.length,
                 breakdown: {
                     menu: menuSize,
                     orders: ordersSize,
@@ -377,7 +418,6 @@ class OfflineManager {
 
 export const offlineManager = new OfflineManager()
 
-// ✅ Auto-cleanup on app start
 if (typeof window !== 'undefined') {
     offlineManager.cleanupOldData()
 

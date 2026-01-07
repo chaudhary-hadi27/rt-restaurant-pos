@@ -1,18 +1,15 @@
-// src/app/admin/page.tsx - WITH PROFILE MODAL
+// src/app/admin/page.tsx - FIXED ADMIN DASHBOARD
 'use client'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useStorageMonitor } from '@/lib/hooks/useStorageMonitor'
 import AdminProfileBadge from '@/components/ui/AdminProfileBadge'
 import AdminProfileModal from '@/components/admin/AdminProfileModal'
-
 import Link from 'next/link'
 import {
     Package, Users, LayoutGrid, ShoppingBag, UtensilsCrossed,
-    DollarSign, TrendingUp, Clock, AlertCircle, ArrowRight,
-    Calendar, Target, Award, Activity, BarChart3, PieChart,
-    HardDrive, Database // ✅ NEW ICONS
+    DollarSign, Clock, AlertCircle, ArrowRight,
+    Calendar, Target, Award, Activity, BarChart3, PieChart
 } from 'lucide-react'
 
 export default function AdminDashboard() {
@@ -24,11 +21,8 @@ export default function AdminDashboard() {
     })
     const [loading, setLoading] = useState(true)
     const [hourlyData, setHourlyData] = useState<any[]>([])
-    const [showProfileModal, setShowProfileModal] = useState(false) // ✅ NEW
+    const [showProfileModal, setShowProfileModal] = useState(false)
     const supabase = createClient()
-
-    // ✅ ADD STORAGE MONITORING
-    const { status: storageStatus } = useStorageMonitor()
 
     useEffect(() => {
         load()
@@ -51,12 +45,18 @@ export default function AdminDashboard() {
                 supabase.from('inventory_items').select('quantity, reorder_level')
             ])
 
-            const revenue = ord.data?.reduce((s, o) => s + (o.total_amount || 0), 0) || 0
-            const todayRevenue = todayOrd.data?.reduce((s, o) => s + (o.total_amount || 0), 0) || 0
-            const lowStock = invItems.data?.filter(i => i.quantity <= i.reorder_level).length || 0
-            const pendingOrders = ord.data?.filter(o => o.status === 'pending').length || 0
-            const activeWaiters = wait.data?.filter(w => w.is_on_duty).length || 0
-            const completedToday = todayOrd.data?.filter(o => o.status === 'completed').length || 0
+            // ✅ SAFE DATA EXTRACTION
+            const ordersData = Array.isArray(ord.data) ? ord.data : []
+            const todayOrdersData = Array.isArray(todayOrd.data) ? todayOrd.data : []
+            const inventoryData = Array.isArray(invItems.data) ? invItems.data : []
+            const waitersData = Array.isArray(wait.data) ? wait.data : []
+
+            const revenue = ordersData.reduce((s, o) => s + (o?.total_amount || 0), 0)
+            const todayRevenue = todayOrdersData.reduce((s, o) => s + (o?.total_amount || 0), 0)
+            const lowStock = inventoryData.filter(i => (i?.quantity || 0) <= (i?.reorder_level || 0)).length
+            const pendingOrders = ordersData.filter(o => o?.status === 'pending').length
+            const activeWaiters = waitersData.filter(w => w?.is_on_duty).length
+            const completedToday = todayOrdersData.filter(o => o?.status === 'completed').length
 
             // Calculate hourly data for chart
             const hourly = Array.from({ length: 24 }, (_, i) => ({
@@ -65,10 +65,12 @@ export default function AdminDashboard() {
                 revenue: 0
             }))
 
-            todayOrd.data?.forEach(order => {
-                const hour = new Date(order.created_at).getHours()
-                hourly[hour].orders++
-                hourly[hour].revenue += order.total_amount || 0
+            todayOrdersData.forEach(order => {
+                if (order?.created_at) {
+                    const hour = new Date(order.created_at).getHours()
+                    hourly[hour].orders++
+                    hourly[hour].revenue += order.total_amount || 0
+                }
             })
 
             setHourlyData(hourly.filter(h => h.orders > 0 || h.revenue > 0))
@@ -77,9 +79,9 @@ export default function AdminDashboard() {
                 inventory: inv.count || 0,
                 waiters: wait.count || 0,
                 tables: tab.count || 0,
-                orders: ord.data?.length || 0,
+                orders: ordersData.length,
                 revenue,
-                todayOrders: todayOrd.data?.length || 0,
+                todayOrders: todayOrdersData.length,
                 activeWaiters,
                 lowStock,
                 pendingOrders,
@@ -87,7 +89,7 @@ export default function AdminDashboard() {
                 completedToday
             })
         } catch (error) {
-            console.error('Failed to load:', error)
+            console.error('Failed to load dashboard:', error)
         }
         setLoading(false)
     }
@@ -186,55 +188,6 @@ export default function AdminDashboard() {
             </header>
 
             <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8 space-y-6 sm:space-y-8">
-
-                {/* ✅ STORAGE WARNING BANNERS */}
-                {storageStatus && (storageStatus.supabase.warning || storageStatus.cloudinary.warning) && (
-                    <div className="space-y-3">
-                        {storageStatus.supabase.warning && (
-                            <div className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-2 border-red-600 rounded-xl p-4">
-                                <div className="flex items-start gap-3">
-                                    <HardDrive className="w-6 h-6 text-red-600 flex-shrink-0" />
-                                    <div className="flex-1">
-                                        <h3 className="font-bold text-red-900 dark:text-red-100 mb-2">
-                                            🚨 Supabase Storage Warning
-                                        </h3>
-                                        <p className="text-sm text-red-800 dark:text-red-200 mb-3">
-                                            Storage is <strong>{storageStatus.supabase.percentage.toFixed(0)}% full</strong> ({storageStatus.supabase.used} GB / {storageStatus.supabase.limit} GB)
-                                        </p>
-                                        <Link
-                                            href="/admin/history"
-                                            className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
-                                        >
-                                            Clean Old Data →
-                                        </Link>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {storageStatus.cloudinary.warning && (
-                            <div className="bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 border-2 border-orange-600 rounded-xl p-4">
-                                <div className="flex items-start gap-3">
-                                    <Database className="w-6 h-6 text-orange-600 flex-shrink-0" />
-                                    <div className="flex-1">
-                                        <h3 className="font-bold text-orange-900 dark:text-orange-100 mb-2">
-                                            ⚠️ Cloudinary Storage Warning
-                                        </h3>
-                                        <p className="text-sm text-orange-800 dark:text-orange-200 mb-3">
-                                            Image storage is <strong>{storageStatus.cloudinary.percentage.toFixed(0)}% full</strong> ({storageStatus.cloudinary.used} GB / {storageStatus.cloudinary.limit} GB)
-                                        </p>
-                                        <Link
-                                            href="/admin/history"
-                                            className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-medium"
-                                        >
-                                            Delete Old Images →
-                                        </Link>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 {/* Quick Stats */}
                 <section>
@@ -430,7 +383,6 @@ export default function AdminDashboard() {
                 </section>
             </div>
 
-            {/* ✅ PROFILE MODAL */}
             <AdminProfileModal
                 open={showProfileModal}
                 onClose={() => setShowProfileModal(false)}
